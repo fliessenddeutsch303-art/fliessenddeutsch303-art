@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import { hashLocalPassword } from "@/lib/local-auth";
 import { hasSupabaseAdminEnv } from "@/lib/env";
+import { ensureTeacherProfile } from "@/lib/teacher-profile";
 
 async function assertAdmin() {
   const supabase = await createSupabaseServerClient();
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
     const admin = createSupabaseAdminClient();
     const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     if (error || !data.user) throw error;
-    await admin.from("users").insert({
+    const { error: profileError } = await admin.from("users").insert({
       id: data.user.id,
       full_name: body.full_name,
       email,
@@ -36,6 +37,17 @@ export async function POST(request: Request) {
       hourly_rate: Number(body.hourly_rate ?? 0),
       ...(hasSupabaseAdminEnv() ? {} : { password_hash: hashLocalPassword(password) }),
     });
+    if (profileError) throw profileError;
+    const teacherResult = await ensureTeacherProfile(admin, {
+      id: data.user.id,
+      full_name: body.full_name,
+      role: body.role,
+      payroll_type: body.payroll_type,
+      monthly_salary: body.monthly_salary,
+      monthly_wage: body.monthly_wage,
+      hourly_rate: body.hourly_rate,
+    });
+    if (teacherResult.error) throw teacherResult.error;
     if (process.env.RESEND_API_KEY) {
       const resend = new Resend(process.env.RESEND_API_KEY);
       await resend.emails.send({
@@ -75,6 +87,16 @@ export async function PATCH(request: Request) {
       ...(password && !hasSupabaseAdminEnv() ? { password_hash: hashLocalPassword(password) } : {}),
     }).eq("id", body.id);
     if (error) throw error;
+    const teacherResult = await ensureTeacherProfile(admin, {
+      id: body.id,
+      full_name: body.full_name,
+      role: body.role,
+      payroll_type: body.payroll_type,
+      monthly_salary: body.monthly_salary,
+      monthly_wage: body.monthly_wage,
+      hourly_rate: body.hourly_rate,
+    });
+    if (teacherResult.error) throw teacherResult.error;
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Failed" }, { status: 400 });

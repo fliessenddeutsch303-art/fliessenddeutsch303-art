@@ -83,16 +83,21 @@ const copy = {
 
 function StudentHoverCard({ student, position, lang }: { student: StudentFollowUp; position: { left: number; top: number }; lang: Lang }) {
   const labels = copy[lang];
+  const isRtl = lang === "ar";
   const latestExam = last(student.exams);
   const latestFeedback = last(student.feedback);
   const latestAttendance = last(student.attendance);
   const latestWorkerComment = last(student.worker_comments ?? []);
   return (
-    <div className="pointer-events-none fixed z-[100] max-h-[82vh] w-[min(520px,calc(100vw-24px))] overflow-auto rounded-lg border bg-white p-5 text-left text-sm shadow-xl" style={{ left: position.left, top: position.top }}>
+    <div
+      dir={isRtl ? "rtl" : "ltr"}
+      className={`pointer-events-none fixed z-[100] max-h-[82vh] w-[min(520px,calc(100vw-24px))] overflow-auto rounded-lg border bg-white p-5 text-sm shadow-xl ${isRtl ? "text-right" : "text-left"}`}
+      style={{ left: position.left, top: position.top, direction: isRtl ? "rtl" : "ltr" }}
+    >
       <div className="mb-3 flex items-start justify-between gap-3 border-b pb-3">
         <div>
           <h3 className="text-lg font-semibold text-primary">{student.full_name}</h3>
-          <p className="text-sm text-muted-foreground">{student.phone} · {student.email ?? labels.noEmail}</p>
+          <p dir="ltr" className="text-left text-sm text-muted-foreground">{student.phone} · {student.email ?? labels.noEmail}</p>
         </div>
         <Badge>{student.status ?? "active"}</Badge>
       </div>
@@ -321,7 +326,7 @@ export function StudentFollowUpManager({
   }
 
   return (
-    <div className="space-y-6">
+    <div dir={lang === "ar" ? "rtl" : "ltr"} className="space-y-6">
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-3">
           <CardTitle>{editing ? `${labels.edit} ${editing.full_name}` : labels.followUp}</CardTitle>
@@ -399,7 +404,7 @@ export function StudentFollowUpManager({
               {(isTeacherMode
                 ? [labels.student, labels.phone, labels.level, labels.className, labels.mode, labels.teacherComment, labels.actions]
                 : ["", labels.student, labels.phone, labels.level, labels.className, labels.teacher, labels.mode, labels.paid, labels.notPaid, labels.latestExam, labels.promotion, labels.latestFeedback, ...(visible.some((student) => (student.worker_comments ?? []).length) ? [labels.staffComment] : []), labels.actions]
-              ).map((header, index) => <th key={`${header}-${index}`} className="px-4 py-3 text-left font-semibold">{!isTeacherMode && index === 0 ? <input type="checkbox" aria-label="Select promotion candidates" checked={promotionCandidates.length > 0 && promotionCandidates.every((student) => selectedPromotionIds.has(student.id))} onChange={toggleAllPromotionSelection} /> : header}</th>)}
+              ).map((header, index) => <th key={`${header}-${index}`} className={`px-4 py-3 font-semibold ${lang === "ar" ? "text-right" : "text-left"}`}>{!isTeacherMode && index === 0 ? <input type="checkbox" aria-label="Select promotion candidates" checked={promotionCandidates.length > 0 && promotionCandidates.every((student) => selectedPromotionIds.has(student.id))} onChange={toggleAllPromotionSelection} /> : header}</th>)}
             </tr>
           </thead>
           <tbody>

@@ -43,7 +43,9 @@ function freezeStatus(row: Record<string, unknown>) {
   return end < new Date().toISOString().slice(0, 10) ? "expired" : "active";
 }
 
-export function StudentsTable({ rows, onEdit }: { rows: Record<string, unknown>[]; onEdit?: (row: Record<string, unknown>) => void }) {
+type PromotionClass = { id: string; name: string; level?: string | null };
+
+export function StudentsTable({ rows, classes = [], onEdit, onPromote }: { rows: Record<string, unknown>[]; classes?: PromotionClass[]; onEdit?: (row: Record<string, unknown>) => void; onPromote?: (student: Record<string, unknown>, classId: string) => Promise<{ ok: boolean; message: string }> }) {
   const [nameQuery, setNameQuery] = useState("");
   const [levelFilter, setLevelFilter] = useState("");
   const [teacherFilter, setTeacherFilter] = useState("");
@@ -52,6 +54,9 @@ export function StudentsTable({ rows, onEdit }: { rows: Record<string, unknown>[
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [promotionClassId, setPromotionClassId] = useState("");
+  const [promotionMessage, setPromotionMessage] = useState("");
 
   const levels = useMemo(() => [...new Set(rows.map((row) => String(row.level ?? "")).filter(Boolean))].sort(), [rows]);
   const teachers = useMemo(() => [...new Set(rows.map(teacherName).filter(Boolean))].sort(), [rows]);
@@ -75,6 +80,11 @@ export function StudentsTable({ rows, onEdit }: { rows: Record<string, unknown>[
 
   const selectedRows = visibleRows.filter((row) => selected.has(String(row.id)));
   const exportRows = selectedRows.length ? selectedRows : visibleRows;
+  const promotingStudent = promotingId ? rows.find((row) => String(row.id) === promotingId) : null;
+  const matchingPromotionClasses = promotingStudent
+    ? classes.filter((klass) => !klass.level || !promotingStudent.next_level || klass.level === promotingStudent.next_level)
+    : [];
+  const promotionClasses = matchingPromotionClasses.length ? matchingPromotionClasses : classes;
 
   function toggle(id: string) {
     setSelected((current) => {
@@ -127,6 +137,16 @@ export function StudentsTable({ rows, onEdit }: { rows: Record<string, unknown>[
       "Students",
       { widths: [18, 14, 24, 9, 24, 16, 18, 10, 10, 12, 12, 12, 13, 12, 28, 12] },
     );
+  }
+
+  async function submitPromotion(row: Record<string, unknown>) {
+    if (!onPromote || !promotionClassId) return;
+    const result = await onPromote(row, promotionClassId);
+    setPromotionMessage(result.message);
+    if (result.ok) {
+      setPromotingId(null);
+      setPromotionClassId("");
+    }
   }
 
   return (
@@ -195,6 +215,7 @@ export function StudentsTable({ rows, onEdit }: { rows: Record<string, unknown>[
                       <Button asChild size="sm" variant="outline"><Link href={`/admin/students/${id}`}>Profile</Link></Button>
                       <Button asChild size="sm" variant="outline"><Link href={`/receipts/student/${id}`}>Receipt</Link></Button>
                       {onEdit && <Button size="sm" variant="outline" onClick={() => onEdit(row)}>Edit</Button>}
+                      {onPromote && row.promotion_candidate === true && <Button size="sm" variant="outline" onClick={() => { setPromotingId(id); setPromotionClassId(""); setPromotionMessage(""); }}>Promote</Button>}
                     </div>
                   </td>
                 </tr>
@@ -204,6 +225,29 @@ export function StudentsTable({ rows, onEdit }: { rows: Record<string, unknown>[
         </table>
         {!visibleRows.length && <div className="p-8 text-center text-muted-foreground">No students match this filter.</div>}
       </div>
+      {promotionMessage && <p className="text-sm text-muted-foreground">{promotionMessage}</p>}
+      {promotingStudent && onPromote && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 p-4" role="dialog" aria-modal="true" aria-labelledby="promote-student-title">
+          <div className="w-full max-w-md rounded-lg border border-accent bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-4 border-b pb-3">
+              <div>
+                <h2 id="promote-student-title" className="text-lg font-semibold">Promote student</h2>
+                <p className="text-sm text-muted-foreground">{String(promotingStudent.full_name ?? "")} · {String(promotingStudent.level ?? "")} → {String(promotingStudent.next_level ?? "next level")}</p>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => { setPromotingId(null); setPromotionMessage(""); }}>Cancel</Button>
+            </div>
+            <label className="grid gap-1 text-sm font-medium">
+              Destination class
+              <Select value={promotionClassId} onChange={(event) => setPromotionClassId(event.target.value)} aria-label="Destination class">
+                <option value="">Choose an existing class...</option>
+                {promotionClasses.map((klass) => <option key={klass.id} value={klass.id}>{klass.name}{klass.level ? ` · ${klass.level}` : ""}</option>)}
+              </Select>
+            </label>
+            {!promotionClasses.length && <p className="mt-3 text-sm text-muted-foreground">Create the next-level class first, then return here to promote this student.</p>}
+            <Button className="mt-4 w-full" onClick={() => void submitPromotion(promotingStudent)} disabled={!promotionClassId || !promotionClasses.length}>Confirm promotion</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

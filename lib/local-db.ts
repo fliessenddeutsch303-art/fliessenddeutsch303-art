@@ -306,6 +306,11 @@ class LocalQuery {
     return this.resolve();
   }
 
+  async maybeSingle() {
+    this.singleRow = true;
+    return this.resolve();
+  }
+
   then<TResult1 = Result, TResult2 = never>(
     onfulfilled?: ((value: Result) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,

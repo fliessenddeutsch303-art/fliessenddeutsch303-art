@@ -31,6 +31,8 @@ type StudentRow = {
   freeze_months?: number | null;
   freeze_end_date?: string | null;
   level_completed_stopped?: boolean | null;
+  promotion_candidate?: boolean;
+  next_level?: string | null;
   enrolled_at?: string | null;
   created_at?: string | null;
   classes?: { name?: string; teachers?: { name?: string } | null } | null;
@@ -60,6 +62,18 @@ export function StudentManager({ initialStudents, classes }: { initialStudents: 
   const [editing, setEditing] = useState<StudentRow | null>(null);
   const [form, setForm] = useState(blank);
   const [saved, setSaved] = useState("");
+
+  async function promoteStudent(row: Record<string, unknown>, classId: string) {
+    const student = row as unknown as StudentRow;
+    const targetClass = classes.find((klass) => klass.id === classId);
+    if (!targetClass) return { ok: false, message: "Choose a class first." };
+    const payload = { class_id: targetClass.id, level: student.next_level || student.level, level_completed_stopped: false };
+    const { error } = await createSupabaseBrowserClient().from("students").update(payload).eq("id", student.id);
+    if (error) return { ok: false, message: error.message };
+    setStudents((rows) => rows.map((row) => row.id === student.id ? { ...row, ...payload, classes: { name: targetClass.name } } : row));
+    void recordAudit("updated", "student", student.id, { action: "promoted", from_class: student.classes?.name ?? null, to_class: targetClass.name, from_level: student.level ?? null, to_level: payload.level });
+    return { ok: true, message: `${student.full_name} moved to ${targetClass.name}.` };
+  }
 
   function setField(key: keyof typeof blank, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -184,7 +198,7 @@ export function StudentManager({ initialStudents, classes }: { initialStudents: 
           </form>
         </CardContent>
       </Card>
-      <StudentsTable rows={students as unknown as Record<string, unknown>[]} onEdit={(row) => startEdit(row as unknown as StudentRow)} />
+      <StudentsTable rows={students as unknown as Record<string, unknown>[]} classes={classes} onEdit={(row) => startEdit(row as unknown as StudentRow)} onPromote={promoteStudent} />
     </div>
   );
 }
