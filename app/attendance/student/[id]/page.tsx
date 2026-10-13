@@ -3,12 +3,14 @@ import { StudentWorkerCommentForm } from "@/components/forms/student-worker-comm
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { refreshClassSessionProgress } from "@/lib/class-progress";
+import { extractPortalToken } from "@/lib/portal-token";
 
 export default async function StudentQrAttendancePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+  const { id: link } = await params;
+  const token = extractPortalToken(link);
   const supabase = createSupabaseAdminClient();
   const today = new Date().toISOString().slice(0, 10);
-  const { data: student } = await supabase.from("students").select("id,full_name,class_id,classes(name,schedule,teacher_id)").eq("id", id).single();
+  const { data: student } = await supabase.from("students").select("id,full_name,class_id,portal_token,classes(name,schedule,teacher_id)").eq("portal_token", token).single();
 
   if (!student) {
     return (
@@ -32,12 +34,12 @@ export default async function StudentQrAttendancePage({ params }: { params: Prom
     );
   }
 
-  const existing = await supabase.from("student_attendance").select("id").eq("student_id", id).eq("class_id", student.class_id).eq("date", today).single();
+  const existing = await supabase.from("student_attendance").select("id").eq("student_id", student.id).eq("class_id", student.class_id).eq("date", today).maybeSingle();
   if (existing.data?.id) {
     await supabase.from("student_attendance").update({ status: "present" }).eq("id", existing.data.id);
   } else {
     await supabase.from("student_attendance").insert({
-      student_id: id,
+      student_id: student.id,
       class_id: student.class_id,
       date: today,
       status: "present",
@@ -71,7 +73,7 @@ export default async function StudentQrAttendancePage({ params }: { params: Prom
             <p><strong>Class:</strong> {classInfo?.name ?? ""}</p>
             <p><strong>Schedule:</strong> {classInfo?.schedule ?? ""}</p>
           </div>
-          <StudentWorkerCommentForm studentId={student.id} workers={workerOptions} />
+          <StudentWorkerCommentForm studentToken={student.portal_token} workers={workerOptions} />
         </CardContent>
       </Card>
     </main>

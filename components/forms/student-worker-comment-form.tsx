@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 type WorkerOption = { value: string; label: string };
 
-export function StudentWorkerCommentForm({ studentId, workers }: { studentId: string; workers: WorkerOption[] }) {
+export function StudentWorkerCommentForm({ studentToken, workers }: { studentToken: string; workers: WorkerOption[] }) {
   const [target, setTarget] = useState(workers[0]?.value ?? "");
   const [comment, setComment] = useState("");
   const [message, setMessage] = useState("");
@@ -18,7 +18,7 @@ export function StudentWorkerCommentForm({ studentId, workers }: { studentId: st
     const response = await fetch("/api/student-worker-feedback", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ student_id: studentId, target, comment }),
+      body: JSON.stringify({ student_token: studentToken, target, comment }),
     });
     const json = await response.json();
     if (!response.ok) {

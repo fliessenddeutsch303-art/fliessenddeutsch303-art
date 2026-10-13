@@ -1,20 +1,22 @@
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/tables/data-table";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { extractPortalToken } from "@/lib/portal-token";
 
 export default async function StudentPortalPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const supabase = await createSupabaseServerClient();
-  const [studentResult, classes, exams, feedback, attendance] = await Promise.all([
-    supabase.from("students").select("id,full_name,level,class_id,learning_mode").eq("id", id).single(),
-    supabase.from("classes").select("id,name,schedule,level,learning_mode"),
-    supabase.from("exam_records").select("exam_type,scheduled_at,level_result,score_percent,result_comment").eq("student_id", id).order("scheduled_at", { ascending: false }),
-    supabase.from("feedback_records").select("source,rating,comment,created_at").eq("student_id", id).order("created_at", { ascending: false }),
-    supabase.from("student_attendance").select("date,status").eq("student_id", id).order("date", { ascending: false }),
-  ]);
+  const { id: link } = await params;
+  const token = extractPortalToken(link);
+  const supabase = createSupabaseAdminClient();
+  const studentResult = await supabase.from("students").select("id,full_name,level,class_id,learning_mode").eq("portal_token", token).single();
   const student = studentResult.data;
   if (!student) return <main className="p-8">Student link not found.</main>;
+  const [classes, exams, feedback, attendance] = await Promise.all([
+    supabase.from("classes").select("id,name,schedule,level,learning_mode").eq("id", student.class_id),
+    supabase.from("exam_records").select("exam_type,scheduled_at,level_result,score_percent,result_comment").eq("student_id", student.id).order("scheduled_at", { ascending: false }),
+    supabase.from("feedback_records").select("source,rating,comment,created_at").eq("student_id", student.id).order("created_at", { ascending: false }),
+    supabase.from("student_attendance").select("date,status").eq("student_id", student.id).order("date", { ascending: false }),
+  ]);
   const klass = (classes.data ?? []).find((item) => item.id === student.class_id);
   return (
     <main className="min-h-screen bg-[#FCFAF6] p-4 md:p-8">

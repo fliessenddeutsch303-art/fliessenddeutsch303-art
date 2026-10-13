@@ -31,15 +31,15 @@ const mockStudentNames = [
 
 const db: Record<string, Row[]> = {
   users: [
-    { id: ids.admin, full_name: "Local Admin", email: "admin@local.test", role: "admin", is_active: true, permissions: {}, payroll_type: "monthly_salary", monthly_salary: 18000, monthly_wage: 0, hourly_rate: 0, password_hash: "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9", created_at: now },
-    { id: ids.reception, full_name: "Local Reception", email: "reception@local.test", role: "reception", is_active: true, permissions: {}, payroll_type: "monthly_salary", monthly_salary: 9000, monthly_wage: 0, hourly_rate: 0, password_hash: "5145dba3b6bda2d610d2c5c435a1c2481eefd3146b6a7e004ad73f794386e031", created_at: now },
+    { id: ids.admin, full_name: "Admin", email: "admin@local.test", role: "admin", is_active: true, permissions: {}, payroll_type: "monthly_salary", monthly_salary: 18000, monthly_wage: 0, hourly_rate: 0, password_hash: "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9", created_at: now },
+    { id: ids.reception, full_name: "Reception", email: "reception@local.test", role: "reception", is_active: true, permissions: {}, payroll_type: "monthly_salary", monthly_salary: 9000, monthly_wage: 0, hourly_rate: 0, password_hash: "5145dba3b6bda2d610d2c5c435a1c2481eefd3146b6a7e004ad73f794386e031", created_at: now },
     { id: ids.sales, full_name: "Ahmed Sales", email: "sales@local.test", role: "sales", is_active: true, permissions: { assigned_files: [ids.file] }, payroll_type: "hourly", monthly_salary: 0, monthly_wage: 0, hourly_rate: 120, password_hash: "6bc0a63cb29c92306020c0a6bbc358cc4628db277dc06e253535e126517ad637", created_at: now },
     { id: "local-sales-2", full_name: "Mona Sales", email: "sales2@local.test", role: "sales", is_active: true, permissions: { assigned_files: [ids.file] }, payroll_type: "hourly", monthly_salary: 0, monthly_wage: 0, hourly_rate: 130, password_hash: "6bc0a63cb29c92306020c0a6bbc358cc4628db277dc06e253535e126517ad637", created_at: now },
-    { id: ids.teacherUser, full_name: "Local Teacher", email: "teacher@local.test", role: "teacher", is_active: true, permissions: {}, payroll_type: "monthly_salary", monthly_salary: 0, monthly_wage: 0, hourly_rate: 0, password_hash: "cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416", created_at: now },
+    { id: ids.teacherUser, full_name: "Teacher", email: "teacher@local.test", role: "teacher", is_active: true, permissions: {}, payroll_type: "monthly_salary", monthly_salary: 0, monthly_wage: 0, hourly_rate: 0, password_hash: "cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416", created_at: now },
   ],
   teachers: [
-    { id: ids.teacher, user_id: ids.teacherUser, name: "Herr Müller", phone: "01000000001", pay_type: "hourly", base_rate: 250, created_at: now },
-    { id: ids.teacher2, user_id: null, name: "Frau Schneider", phone: "01000000002", pay_type: "per_session", base_rate: 400, created_at: now },
+    { id: ids.teacher, user_id: ids.teacherUser, name: "Herr Müller", phone: "01000000001", portal_token: crypto.randomUUID().replaceAll("-", ""), pay_type: "hourly", base_rate: 250, created_at: now },
+    { id: ids.teacher2, user_id: null, name: "Frau Schneider", phone: "01000000002", portal_token: crypto.randomUUID().replaceAll("-", ""), pay_type: "per_session", base_rate: 400, created_at: now },
   ],
   branches: [
     { id: ids.branch, name: "Main Branch", address: "Nasr City", phone: "01000000000", is_active: true, created_at: now },
@@ -55,6 +55,7 @@ const db: Record<string, Row[]> = {
     full_name: mockStudentNames[index],
     phone: `0101000000${index}`,
     email: `student${index + 1}@local.test`,
+    portal_token: crypto.randomUUID().replaceAll("-", ""),
     level: index < 25 ? "A1" : "B1",
     tags: index % 2 === 0 ? ["electric company"] : ["water company"],
     class_id: index % 2 === 0 ? ids.classA1 : ids.classB1,
@@ -180,8 +181,8 @@ const db: Record<string, Row[]> = {
     { id: "local-event-2", user_id: null, teacher_id: ids.teacher, type: "vacation", event_date: today, amount: null, score: null, notes: "Approved half-day leave.", created_by: ids.admin, created_at: now },
   ],
   audit_logs: [
-    { id: "local-log-1", actor_user_id: ids.admin, actor_name: "Local Admin", actor_email: "admin@local.test", action: "updated", entity_type: "student", entity_id: "local-student-1", details: { fields: ["amount_paid", "payment_comment"], note: "Demo student payment update" }, created_at: now },
-    { id: "local-log-2", actor_user_id: ids.admin, actor_name: "Local Admin", actor_email: "admin@local.test", action: "created", entity_type: "class", entity_id: ids.classB2, details: { name: "B2 Weekend", status: "finished" }, created_at: now },
+    { id: "local-log-1", actor_user_id: ids.admin, actor_name: "Admin", actor_email: "admin@local.test", action: "updated", entity_type: "student", entity_id: "local-student-1", details: { fields: ["amount_paid", "payment_comment"], note: "Demo student payment update" }, created_at: now },
+    { id: "local-log-2", actor_user_id: ids.admin, actor_name: "Admin", actor_email: "admin@local.test", action: "created", entity_type: "class", entity_id: ids.classB2, details: { name: "B2 Weekend", status: "finished" }, created_at: now },
   ],
   textbook_inventory: [
     { id: "local-book-1", title: "Menschen A1 Kursbuch", level: "A1", edition: "2024", quantity_on_hand: 12, quantity_needed: 20, quantity_ordered: 8, ordered_at: today, expected_delivery_date: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10), supplier: "Hueber", notes: "Delivery pending", created_at: now, updated_at: now },

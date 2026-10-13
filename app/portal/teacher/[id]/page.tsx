@@ -1,19 +1,21 @@
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/tables/data-table";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { extractPortalToken } from "@/lib/portal-token";
 
 export default async function TeacherPortalPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const supabase = await createSupabaseServerClient();
-  const [teacherResult, classes, attendance, feedback] = await Promise.all([
-    supabase.from("teachers").select("*").eq("id", id).single(),
-    supabase.from("classes").select("id,name,level,learning_mode,schedule,capacity").eq("teacher_id", id).order("name"),
-    supabase.from("teacher_attendance").select("date,check_in,check_out,sessions_count,notes").eq("teacher_id", id).order("date", { ascending: false }),
-    supabase.from("feedback_records").select("student_id,rating,comment,created_at").eq("teacher_id", id).order("created_at", { ascending: false }),
-  ]);
+  const { id: link } = await params;
+  const token = extractPortalToken(link);
+  const supabase = createSupabaseAdminClient();
+  const teacherResult = await supabase.from("teachers").select("*").eq("portal_token", token).single();
   const teacher = teacherResult.data;
   if (!teacher) return <main className="p-8">Teacher link not found.</main>;
+  const [classes, attendance, feedback] = await Promise.all([
+    supabase.from("classes").select("id,name,level,learning_mode,schedule,capacity").eq("teacher_id", teacher.id).order("name"),
+    supabase.from("teacher_attendance").select("date,check_in,check_out,sessions_count,notes").eq("teacher_id", teacher.id).order("date", { ascending: false }),
+    supabase.from("feedback_records").select("student_id,rating,comment,created_at").eq("teacher_id", teacher.id).order("created_at", { ascending: false }),
+  ]);
   return (
     <main className="min-h-screen bg-[#FCFAF6] p-4 md:p-8">
       <div className="mx-auto max-w-5xl space-y-6">

@@ -30,12 +30,20 @@ export function ReportDataTools({ reportData }: { reportData: ReportData }) {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(storageKey);
-      if (saved) setSnapshot(JSON.parse(saved) as Partial<ReportData>);
-    } catch {
-      // Ignore malformed local snapshots and keep the live report available.
-    }
+    let cancelled = false;
+    void fetch("/api/report-snapshots", { cache: "no-store" }).then(async (response) => {
+      if (!response.ok) throw new Error("Cloud snapshots unavailable");
+      const json = await response.json() as { snapshots?: Array<{ section: ReportSection; rows: ExcelRow[] }> };
+      if (!cancelled) setSnapshot(Object.fromEntries((json.snapshots ?? []).map((item) => [item.section, item.rows])) as Partial<ReportData>);
+    }).catch(() => {
+      try {
+        const saved = window.localStorage.getItem(storageKey);
+        if (saved && !cancelled) setSnapshot(JSON.parse(saved) as Partial<ReportData>);
+      } catch {
+        // Ignore malformed local snapshots and keep the live report available.
+      }
+    });
+    return () => { cancelled = true; };
   }, []);
 
   function rowsFor(sectionName: ReportSection) {
@@ -56,6 +64,8 @@ export function ReportDataTools({ reportData }: { reportData: ReportData }) {
       const next = { ...snapshot, [section]: rows };
       window.localStorage.setItem(storageKey, JSON.stringify(next));
       setSnapshot(next);
+      const response = await fetch("/api/report-snapshots", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ section, rows }) });
+      if (!response.ok) throw new Error("Report imported locally; cloud save failed.");
       setError(false);
       setMessage(`Imported and saved ${rows.length} rows in ${sectionNames[section]}`);
     } catch (importError) {

@@ -8,7 +8,7 @@ export async function recordAudit(action: string, entityType: string, entityId: 
   const actor = data.user;
   await supabase.from("audit_logs").insert({
     actor_user_id: actor?.id ?? null,
-    actor_name: actor?.user_metadata?.full_name ?? actor?.email ?? "Local Admin",
+    actor_name: actor?.user_metadata?.full_name ?? actor?.email ?? "Admin",
     actor_email: actor?.email ?? "admin@local.test",
     action,
     entity_type: entityType,
@@ -16,6 +16,6 @@ export async function recordAudit(action: string, entityType: string, entityId: 
     details,
   });
   if (action === "deleted" && typeof window !== "undefined") {
-    void fetch("/api/security-alert", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ actor: actor?.email ?? "Local Admin", entityType, entityId, details }) });
+    void fetch("/api/security-alert", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ actor: actor?.email ?? "Admin", entityType, entityId, details }) });
   }
 }

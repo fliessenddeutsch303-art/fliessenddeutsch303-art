@@ -1,10 +1,11 @@
-import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LanguageToggle } from "@/components/layout/language-toggle";
 import { Logo } from "@/components/layout/logo";
 import { ReminderNotifier } from "@/components/layout/reminder-notifier";
 import { PersistentNavGroup } from "@/components/layout/persistent-nav-group";
+import { ActiveNavLink } from "@/components/layout/active-nav-link";
+import { PageHeaderContext } from "@/components/layout/page-header-context";
 import { dictionaries, direction, type Lang } from "@/lib/i18n";
 import type { NavItem, UserProfile } from "@/lib/types";
 
@@ -63,7 +64,7 @@ export function AppShell({ profile, children, lang }: { profile: UserProfile; ch
           <Logo className="h-12 w-auto object-contain" />
         </div>
         <nav className="mt-8 grid gap-4" aria-label={t.academySystem}>
-          {navGroups.map((group) => group.label ? <PersistentNavGroup key={group.label} groupKey={`group-${group.items[0]?.href}`} label={group.label} rtl={isRtl} items={group.items.map((item) => ({ href: item.href, label: t.nav[item.labelKey] }))} /> : group.items.map((item) => <Link key={item.href} className="rounded-md px-3 py-2 text-sm" href={item.href}>{t.nav[item.labelKey]}</Link>))}
+          {navGroups.map((group) => group.label ? <PersistentNavGroup key={group.label} groupKey={`group-${group.items[0]?.href}`} label={group.label} rtl={isRtl} items={group.items.map((item) => ({ href: item.href, label: t.nav[item.labelKey] }))} /> : group.items.map((item) => <ActiveNavLink key={item.href} href={item.href} label={t.nav[item.labelKey]} rtl={isRtl} />))}
         </nav>
         <form action="/api/auth/signout" className="absolute bottom-5 left-5 right-5">
           <Button className="w-full" variant="outline">
@@ -73,10 +74,7 @@ export function AppShell({ profile, children, lang }: { profile: UserProfile; ch
       </aside>
       <main className={`min-w-0 ${isRtl ? "md:pr-64" : "md:pl-64"}`}>
         <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-3 border-b bg-white/95 px-3 backdrop-blur sm:px-4 md:px-8">
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground sm:text-sm">{t.roles[profile.role]}</p>
-            <h1 className="truncate font-semibold">{profile.full_name}</h1>
-          </div>
+          <PageHeaderContext profile={profile} lang={lang} />
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <LanguageToggle lang={lang} />
             <div className="hidden text-sm font-medium text-primary sm:block">{t.academySystem}</div>
@@ -86,7 +84,7 @@ export function AppShell({ profile, children, lang }: { profile: UserProfile; ch
           <details>
             <summary className="cursor-pointer list-none rounded-md border px-3 py-2 text-sm font-semibold text-primary">{lang === "ar" ? "القائمة" : "Menu"}</summary>
             <nav className="mt-2 grid gap-3" aria-label={t.academySystem}>
-              {navGroups.map((group) => group.label ? <PersistentNavGroup key={group.label} groupKey={`group-${group.items[0]?.href}`} label={group.label} mobile items={group.items.map((item) => ({ href: item.href, label: t.nav[item.labelKey] }))} /> : group.items.map((item) => <Link key={item.href} className="rounded-md px-3 py-2 text-sm" href={item.href}>{t.nav[item.labelKey]}</Link>))}
+              {navGroups.map((group) => group.label ? <PersistentNavGroup key={group.label} groupKey={`group-${group.items[0]?.href}`} label={group.label} mobile items={group.items.map((item) => ({ href: item.href, label: t.nav[item.labelKey] }))} /> : group.items.map((item) => <ActiveNavLink key={item.href} href={item.href} label={t.nav[item.labelKey]} mobile />))}
             </nav>
             <form action="/api/auth/signout" className="mt-2">
               <Button className="w-full" variant="outline"><LogOut size={16} /> {t.signOut}</Button>

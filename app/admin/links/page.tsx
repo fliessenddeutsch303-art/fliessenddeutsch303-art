@@ -1,24 +1,38 @@
+import { randomUUID } from "node:crypto";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth";
 import { qrDataUrl } from "@/lib/qr";
 
 function siteUrl() {
-  return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  return process.env.NEXT_PUBLIC_SITE_URL || "https://www.fliessendeutsch.com";
+}
+
+function slug(value: string) {
+  return value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "profile";
+}
+
+async function ensureToken(supabase: any, table: "students" | "teachers", id: string, token: string | null | undefined) {
+  if (token) return token;
+  const generated = randomUUID().replaceAll("-", "");
+  await supabase.from(table).update({ portal_token: generated }).eq("id", id);
+  return generated;
 }
 
 export default async function LinksPage() {
   const { supabase } = await getCurrentUser("admin");
   const [students, teachers] = await Promise.all([
-    supabase.from("students").select("id,full_name,phone").order("full_name"),
-    supabase.from("teachers").select("id,name,phone").order("name"),
+    supabase.from("students").select("id,full_name,phone,portal_token").order("full_name"),
+    supabase.from("teachers").select("id,name,phone,portal_token").order("name"),
   ]);
   const studentLinks = await Promise.all((students.data ?? []).slice(0, 30).map(async (student) => {
-    const url = `${siteUrl()}/portal/student/${student.id}`;
+    const token = await ensureToken(supabase, "students", student.id, student.portal_token);
+    const url = `${siteUrl()}/attendance/student/${slug(student.full_name)}-${token}`;
     return { ...student, url, qr: await qrDataUrl(url) };
   }));
   const teacherLinks = await Promise.all((teachers.data ?? []).slice(0, 30).map(async (teacher) => {
-    const url = `${siteUrl()}/portal/teacher/${teacher.id}`;
+    const token = await ensureToken(supabase, "teachers", teacher.id, teacher.portal_token);
+    const url = `${siteUrl()}/portal/teacher/${slug(teacher.name)}-${token}`;
     return { ...teacher, url, qr: await qrDataUrl(url) };
   }));
   return (
