@@ -236,12 +236,13 @@ function withRelations(table: string, row: Row) {
 
 class LocalQuery {
   private filters: Array<(row: Row) => boolean> = [];
+  private filterSpecs: Array<{ type: "eq" | "neq" | "in" | "gte" | "lte"; key: string; value: unknown }> = [];
   private sortKey: string | null = null;
   private ascending = true;
   private singleRow = false;
   private head = false;
   private wantsCount = false;
-  private operation: "select" | "insert" | "update" | "upsert" = "select";
+  private operation: "select" | "insert" | "update" | "upsert" | "delete" = "select";
   private payload: Row | Row[] | null = null;
 
   constructor(private table: string) {}
@@ -270,28 +271,38 @@ class LocalQuery {
     return this;
   }
 
+  delete() {
+    this.operation = "delete";
+    return this;
+  }
+
   eq(key: string, value: unknown) {
     this.filters.push((row) => row[key] === value);
+    this.filterSpecs.push({ type: "eq", key, value });
     return this;
   }
 
   neq(key: string, value: unknown) {
     this.filters.push((row) => row[key] !== value);
+    this.filterSpecs.push({ type: "neq", key, value });
     return this;
   }
 
   in(key: string, values: unknown[]) {
     this.filters.push((row) => values.includes(row[key]));
+    this.filterSpecs.push({ type: "in", key, value: values });
     return this;
   }
 
   gte(key: string, value: string) {
     this.filters.push((row) => String(row[key] ?? "") >= value);
+    this.filterSpecs.push({ type: "gte", key, value });
     return this;
   }
 
   lte(key: string, value: string) {
     this.filters.push((row) => String(row[key] ?? "") <= value);
+    this.filterSpecs.push({ type: "lte", key, value });
     return this;
   }
 
@@ -329,6 +340,25 @@ class LocalQuery {
   }
 
   private async resolve(): Promise<Result> {
+    if (typeof window !== "undefined") {
+      const response = await fetch("/api/local-db", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          table: this.table,
+          operation: this.operation,
+          payload: this.payload,
+          filters: this.filterSpecs,
+          sortKey: this.sortKey,
+          ascending: this.ascending,
+          singleRow: this.singleRow,
+          head: this.head,
+          wantsCount: this.wantsCount,
+        }),
+      });
+      if (!response.ok) return { data: null, error: { message: "Local data request failed" } } as unknown as Result;
+      return response.json() as Promise<Result>;
+    }
     db[this.table] ??= [];
     if (this.operation === "insert" || this.operation === "upsert") {
       const rows = (Array.isArray(this.payload) ? this.payload : [this.payload]).filter(Boolean).map((row) => ({
@@ -343,6 +373,12 @@ class LocalQuery {
     if (this.operation === "update") {
       const rows = this.matching();
       rows.forEach((row) => Object.assign(row, this.payload));
+      const data = this.singleRow ? rows[0] ?? null : rows;
+      return { data: clone(data), error: null, count: rows.length };
+    }
+    if (this.operation === "delete") {
+      const rows = this.matching();
+      db[this.table] = db[this.table].filter((row) => !rows.includes(row));
       const data = this.singleRow ? rows[0] ?? null : rows;
       return { data: clone(data), error: null, count: rows.length };
     }

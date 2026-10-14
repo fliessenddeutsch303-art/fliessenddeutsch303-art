@@ -84,12 +84,21 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
   const supabase = createSupabaseBrowserClient();
 
   useEffect(() => {
-    const loadManualSheets = () => {
+    const loadManualSheets = async () => {
+      try {
+        const response = await fetch("/api/manual-sheets", { cache: "no-store" });
+        if (response.ok) {
+          const json = await response.json() as { sheets?: Array<{ id: string; name: string }> };
+          setManualSheets(json.sheets ?? []);
+          return;
+        }
+      } catch { /* use local fallback while offline */ }
       try { setManualSheets(JSON.parse(localStorage.getItem("fd_manual_lead_sheets") ?? "[]")); } catch { setManualSheets([]); }
     };
-    loadManualSheets();
-    window.addEventListener("fd-manual-sheets-updated", loadManualSheets);
-    return () => window.removeEventListener("fd-manual-sheets-updated", loadManualSheets);
+    void loadManualSheets();
+    const refresh = () => void loadManualSheets();
+    window.addEventListener("fd-manual-sheets-updated", refresh);
+    return () => window.removeEventListener("fd-manual-sheets-updated", refresh);
   }, []);
 
   const filtered = useMemo(() => {
@@ -226,7 +235,7 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
 
   const listTabs = <div className="flex flex-wrap gap-2 border-b pb-3"><Button variant={listView === "active" ? "default" : "outline"} onClick={() => { setListView("active"); setPage(1); setSelected(new Set()); }}>Active Leads ({leads.filter((lead) => lead.status !== "waiting").length})</Button><Button variant={listView === "waiting" ? "default" : "outline"} onClick={() => { setListView("waiting"); setPage(1); setSelected(new Set()); }}>Waiting List ({leads.filter((lead) => lead.status === "waiting").length})</Button>{manualSheets.map((sheet) => <Button key={sheet.id} variant={listView === `manual:${sheet.id}` ? "default" : "outline"} onClick={() => setListView(`manual:${sheet.id}`)}>{sheet.name}</Button>)}<Button variant={listView === "manual:new" ? "default" : "outline"} onClick={() => setListView("manual:new")}><Plus size={16} /> New list</Button></div>;
 
-  if (listView.startsWith("manual:")) return <div className="space-y-4">{listTabs}<ManualLeadSheet embedded initialSheetId={listView === "manual:new" ? undefined : listView.slice("manual:".length)} /></div>;
+  if (listView.startsWith("manual:")) return <div className="space-y-4">{listTabs}<ManualLeadSheet embedded initialSheetId={listView === "manual:new" ? undefined : listView.slice("manual:".length)} onDeleted={() => setListView("active")} /></div>;
 
   return <div className="space-y-4">
     {listTabs}
@@ -236,8 +245,8 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
       <Input className="w-36" value={tagFilter} onChange={(event) => { setTagFilter(event.target.value); setPage(1); }} placeholder="Tag" />
       <Select className="w-44" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">All statuses</option>{statuses.filter((status) => listView === "waiting" ? status === "waiting" : status !== "waiting").map((status) => <option key={status} value={status}>{status}</option>)}</Select>
       {canAssign && <><Select className="w-52" value={bulkAssignee} onChange={(event) => setBulkAssignee(event.target.value)}><option value="">Choose sales person</option><option value="__unassigned">Unassign selected</option>{reps.map((rep) => <option key={rep.id} value={rep.id}>{rep.full_name}</option>)}</Select><Button type="button" disabled={!selected.size || !bulkAssignee || saving === "bulk"} onClick={() => void assignSelected()}>Assign selected ({selected.size})</Button></>}
-      <Button variant="outline" onClick={exportRows}><Download size={16} /> Export {listView === "waiting" ? "waiting" : "active"} {selectedRows.length ? "selected" : "filtered"}</Button>
-      <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border bg-white px-4 text-sm font-medium hover:bg-muted"><Upload size={16} /> Import {listView === "waiting" ? "waiting" : "active"}<input className="hidden" type="file" accept=".csv,.xlsx,.xls" onChange={importFile} /></label>
+      <Button variant="outline" onClick={exportRows}><Upload size={16} /> Export {listView === "waiting" ? "waiting" : "active"} {selectedRows.length ? "selected" : "filtered"}</Button>
+      <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border bg-white px-4 text-sm font-medium hover:bg-muted"><Download size={16} /> Import {listView === "waiting" ? "waiting" : "active"}<input className="hidden" type="file" accept=".csv,.xlsx,.xls" onChange={importFile} /></label>
     </div>
     <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground"><span>{filtered.length} leads</span><span>{selected.size} selected</span>{message && <span className="text-primary">{message}</span>}</div>
     <div className="overflow-x-auto rounded-md border bg-white"><table className="min-w-[1800px] border-collapse text-sm">

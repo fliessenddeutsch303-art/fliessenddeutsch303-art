@@ -12,7 +12,7 @@ import { StudentsTable } from "@/components/tables/students-table";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { recordAudit } from "@/lib/audit";
 
-type ClassOption = { id: string; name: string };
+type ClassOption = { id: string; name: string; level?: string | null };
 type StudentRow = {
   id: string;
   full_name: string;
@@ -70,7 +70,13 @@ export function StudentManager({ initialStudents, classes }: { initialStudents: 
     const payload = { class_id: targetClass.id, level: student.next_level || student.level, level_completed_stopped: false };
     const { error } = await createSupabaseBrowserClient().from("students").update(payload).eq("id", student.id);
     if (error) return { ok: false, message: error.message };
-    setStudents((rows) => rows.map((row) => row.id === student.id ? { ...row, ...payload, classes: { name: targetClass.name } } : row));
+    setStudents((rows) => rows.map((row) => row.id === student.id ? {
+      ...row,
+      ...payload,
+      promotion_candidate: false,
+      next_level: null,
+      classes: { name: targetClass.name },
+    } : row));
     void recordAudit("updated", "student", student.id, { action: "promoted", from_class: student.classes?.name ?? null, to_class: targetClass.name, from_level: student.level ?? null, to_level: payload.level });
     return { ok: true, message: `${student.full_name} moved to ${targetClass.name}.` };
   }

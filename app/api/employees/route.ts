@@ -102,3 +102,41 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Failed" }, { status: 400 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) throw new Error("Unauthorized");
+    const { data: profile } = await supabase.from("users").select("role").eq("id", auth.user.id).single();
+    if (profile?.role !== "admin") throw new Error("Unauthorized");
+    const body = await request.json();
+    const id = String(body.id ?? "");
+    if (!id) throw new Error("Employee id is required.");
+    if (id === auth.user.id) throw new Error("You cannot delete the account currently in use.");
+
+    const admin = createSupabaseAdminClient();
+    const { data: employee } = await admin.from("users").select("id,full_name,email,role").eq("id", id).single();
+    if (!employee) throw new Error("Employee not found.");
+    await admin.from("audit_logs").insert({
+      actor_user_id: auth.user.id,
+      actor_name: auth.user.email ?? "Admin",
+      actor_email: auth.user.email ?? null,
+      action: "deleted",
+      entity_type: "employee",
+      entity_id: id,
+      details: { full_name: employee.full_name, email: employee.email, role: employee.role },
+    });
+    await admin.from("teachers").delete().eq("user_id", id);
+    if (hasSupabaseAdminEnv()) {
+      const { error } = await admin.auth.admin.deleteUser(id);
+      if (error) throw error;
+    } else {
+      const { error } = await admin.from("users").delete().eq("id", id);
+      if (error) throw error;
+    }
+    return NextResponse.json({ ok: true, id });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to delete employee" }, { status: 400 });
+  }
+}

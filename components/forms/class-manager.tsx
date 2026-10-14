@@ -11,7 +11,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { recordAudit } from "@/lib/audit";
 
 type Teacher = { id: string; name: string };
-type ClassStudent = { id: string; full_name: string; phone?: string | null; email?: string | null; level?: string | null; learning_mode?: string | null; status?: string | null };
+type ClassStudent = { id: string; full_name: string; phone?: string | null; email?: string | null; level?: string | null; learning_mode?: string | null; status?: string | null; promotion_candidate?: boolean; next_level?: string | null };
 type ClassRow = {
   id: string;
   name: string;
@@ -58,6 +58,11 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
   const [classStatus, setClassStatus] = useState("not_started");
   const [saved, setSaved] = useState("");
   const [openClassIds, setOpenClassIds] = useState<string[]>([]);
+  const [promotingStudent, setPromotingStudent] = useState<(ClassStudent & { fromClassId: string; fromClassName: string }) | null>(null);
+  const [promotionDestination, setPromotionDestination] = useState<"class" | "waiting" | "freeze">("class");
+  const [promotionClassId, setPromotionClassId] = useState("");
+  const [freezeMonths, setFreezeMonths] = useState("1");
+  const [promotionMessage, setPromotionMessage] = useState("");
 
   const title = editing ? "Edit Class" : "Create Class";
   const buttonLabel = editing ? "Update Class" : "Save Class";
@@ -190,7 +195,7 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
         delete next[day];
         return next;
       }
-      return { ...slots, [day]: "" };
+      return { ...slots, [day]: "18:00" };
     });
   }
 
@@ -198,8 +203,72 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
     setScheduleSlots((slots) => ({ ...slots, [day]: time }));
   }
 
+  const canSubmit = Boolean(
+    name.trim()
+    && level.trim()
+    && teacherId
+    && Object.keys(scheduleSlots).length > 0
+    && Object.values(scheduleSlots).every(Boolean)
+    && Number(capacity) >= 1
+    && Number(totalSessions) >= 0
+    && Number(sessionsDone) >= 0
+    && Number(sessionsDone) <= Number(totalSessions),
+  );
+
   function toggleClass(id: string) {
     setOpenClassIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]);
+  }
+
+  const promotionClasses = promotingStudent?.next_level
+    ? classes.filter((row) => row.id !== promotingStudent.fromClassId && row.level === promotingStudent.next_level)
+    : [];
+
+  async function promoteStudent() {
+    if (!promotingStudent) return;
+    const targetClass = classes.find((row) => row.id === promotionClassId);
+    const supabase = createSupabaseBrowserClient();
+    const today = new Date().toISOString().slice(0, 10);
+    let error: { message: string } | null = null;
+
+    if (promotionDestination === "class") {
+      if (!targetClass) return;
+      const payload = { class_id: targetClass.id, level: promotingStudent.next_level, level_completed_stopped: false };
+      ({ error } = await supabase.from("students").update(payload).eq("id", promotingStudent.id));
+    } else if (promotionDestination === "waiting") {
+      const { error: leadError } = await supabase.from("leads").insert({
+        full_name: promotingStudent.full_name,
+        phone: promotingStudent.phone ?? "",
+        source: "Student transfer",
+        status: "waiting",
+        crm_data: {
+          level: promotingStudent.next_level ?? promotingStudent.level ?? "",
+          previous_class: promotingStudent.fromClassName,
+          reminder_note: "Student is waiting for a suitable next class.",
+        },
+      });
+      if (leadError) error = leadError;
+      else ({ error } = await supabase.from("students").update({ class_id: null }).eq("id", promotingStudent.id));
+    } else {
+      const months = Math.min(3, Math.max(1, Number(freezeMonths)));
+      const end = new Date(`${today}T12:00:00`);
+      end.setMonth(end.getMonth() + months);
+      ({ error } = await supabase.from("students").update({ class_id: null, freeze_start_date: today, freeze_months: months, freeze_end_date: end.toISOString().slice(0, 10) }).eq("id", promotingStudent.id));
+    }
+    if (error) {
+      setPromotionMessage(error.message);
+      return;
+    }
+    setClasses((current) => current.map((row) => {
+      if (row.id === promotingStudent.fromClassId) return { ...row, students: (row.students ?? []).filter((student) => student.id !== promotingStudent.id) };
+      if (promotionDestination === "class" && targetClass && row.id === targetClass.id) return { ...row, students: [...(row.students ?? []), { ...promotingStudent, class_id: targetClass.id, level: promotingStudent.next_level, promotion_candidate: false, next_level: null }] };
+      return row;
+    }));
+    const destinationLabel = promotionDestination === "class" ? targetClass?.name ?? "next class" : promotionDestination === "waiting" ? "waiting list" : `freeze (${freezeMonths} month)`;
+    void recordAudit("updated", "student", promotingStudent.id, { action: promotionDestination === "class" ? "promoted" : "transferred", from_class: promotingStudent.fromClassName, destination: destinationLabel, from_level: promotingStudent.level, to_level: promotingStudent.next_level });
+    setPromotionMessage(`${promotingStudent.full_name} moved to ${destinationLabel}.`);
+    setPromotingStudent(null);
+    setPromotionClassId("");
+    setPromotionDestination("class");
   }
 
   function printRoster(row: ClassRow & { teacher: string }) {
@@ -274,16 +343,16 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
         </CardHeader>
         <CardContent>
           <form onSubmit={submit} className="grid gap-3 md:grid-cols-4">
-            <Input required placeholder="Class name" value={name} onChange={(event) => setName(event.target.value)} />
-            <Select required value={teacherId} onChange={(event) => setTeacherId(event.target.value)}>
+            <label className="grid gap-1 text-sm"><span className="font-medium">Class name</span><Input required value={name} onChange={(event) => setName(event.target.value)} /></label>
+            <label className="grid gap-1 text-sm"><span className="font-medium">Teacher</span><Select required value={teacherId} onChange={(event) => setTeacherId(event.target.value)}>
               {teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
-            </Select>
-            <Input placeholder="Level" value={level} onChange={(event) => setLevel(event.target.value)} />
-            <Input placeholder="Current Kapitel / chapter" value={currentChapter} onChange={(event) => setCurrentChapter(event.target.value)} />
-            <Select value={learningMode} onChange={(event) => setLearningMode(event.target.value)}>
+            </Select></label>
+            <label className="grid gap-1 text-sm"><span className="font-medium">Level</span><Input value={level} onChange={(event) => setLevel(event.target.value)} /></label>
+            <label className="grid gap-1 text-sm"><span className="font-medium">Current chapter / lesson</span><Input value={currentChapter} onChange={(event) => setCurrentChapter(event.target.value)} /></label>
+            <label className="grid gap-1 text-sm"><span className="font-medium">Online / Offline</span><Select value={learningMode} onChange={(event) => setLearningMode(event.target.value)}>
               <option value="offline">Offline</option>
               <option value="online">Online</option>
-            </Select>
+            </Select></label>
             <div className="grid gap-2 md:col-span-4">
               <p className="text-sm font-medium">Weekly schedule</p>
               <div className="grid grid-cols-2 gap-1.5 md:grid-cols-7">
@@ -310,7 +379,7 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
               <option value="started">Started</option>
               <option value="finished">Finished</option>
             </Select></label>
-            <Button className="md:col-span-4" disabled={!Object.keys(scheduleSlots).length || Object.values(scheduleSlots).some((time) => !time)}>
+            <Button type="submit" className="md:col-span-4" disabled={!canSubmit}>
               {editing ? <Edit2 size={16} /> : <Plus size={16} />}
               {buttonLabel}
             </Button>
@@ -351,8 +420,8 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
                         </Button></div>
                       </td>
                       <td className="px-4 py-3 font-semibold">{row.name}</td>
-                      <td className="px-4 py-3">{row.level}</td>
-                      <td className="px-4 py-3">{row.current_chapter}</td>
+                      <td className="min-w-[120px] px-4 py-3">{row.level ?? ""}</td>
+                      <td className="min-w-[160px] px-4 py-3">{row.current_chapter ?? ""}</td>
                       <td className="px-4 py-3">{row.learning_mode}</td>
                       <td className="px-4 py-3">{row.teacher}</td>
                       <td className="px-4 py-3">{row.schedule}</td>
@@ -379,7 +448,7 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
                             <table className="w-full text-sm">
                               <thead className="bg-muted">
                                 <tr>
-                                  {["Name", "Phone", "Email", "Level", "Mode", "Status"].map((header) => (
+                                  {["Name", "Phone", "Email", "Level", "Mode", "Status", "Actions"].map((header) => (
                                     <th key={header} className="px-3 py-2 text-left font-semibold">{header}</th>
                                   ))}
                                 </tr>
@@ -393,9 +462,12 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
                                     <td className="px-3 py-2">{student.level}</td>
                                     <td className="px-3 py-2">{student.learning_mode}</td>
                                     <td className="px-3 py-2">{student.status}</td>
+                                    <td className="px-3 py-2">
+                                      <Button type="button" size="sm" variant="outline" onClick={() => { setPromotingStudent({ ...student, fromClassId: row.id, fromClassName: row.name }); setPromotionDestination("class"); setPromotionClassId(""); setFreezeMonths("1"); setPromotionMessage(""); }}>Promote / transfer</Button>
+                                    </td>
                                   </tr>
                                 ))}
-                                {!students.length && <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">No students in this class yet.</td></tr>}
+                                {!students.length && <tr><td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">No students in this class yet.</td></tr>}
                               </tbody>
                             </table>
                           </div>
@@ -409,6 +481,41 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
           </table>
         </CardContent>
       </Card>
+      {promotionMessage && <p className="text-sm text-muted-foreground">{promotionMessage}</p>}
+      {promotingStudent && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 p-4" role="dialog" aria-modal="true" aria-labelledby="class-promote-title">
+          <div className="w-full max-w-md rounded-lg border border-accent bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-4 border-b pb-3">
+              <div>
+                <h2 id="class-promote-title" className="text-lg font-semibold">Promote student</h2>
+                <p className="text-sm text-muted-foreground">{promotingStudent.full_name} · {promotingStudent.level} → {promotingStudent.next_level}</p>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={() => setPromotingStudent(null)}><X size={16} /> Cancel</Button>
+            </div>
+            <label className="mb-3 grid gap-1 text-sm font-medium">
+              Destination
+              <Select value={promotionDestination} onChange={(event) => { setPromotionDestination(event.target.value as "class" | "waiting" | "freeze"); setPromotionClassId(""); }}>
+                <option value="class">Next-level class</option>
+                <option value="waiting">Waiting list</option>
+                <option value="freeze">Freeze student</option>
+              </Select>
+            </label>
+            {promotionDestination === "class" && <label className="grid gap-1 text-sm font-medium">
+              Choose an existing next-level class
+              <Select value={promotionClassId} onChange={(event) => setPromotionClassId(event.target.value)}>
+                <option value="">Choose class...</option>
+                {promotionClasses.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.level}</option>)}
+              </Select>
+            </label>}
+            {promotionDestination === "freeze" && <label className="grid gap-1 text-sm font-medium">
+              Freeze duration
+              <Select value={freezeMonths} onChange={(event) => setFreezeMonths(event.target.value)}><option value="1">1 month</option><option value="2">2 months</option><option value="3">3 months</option></Select>
+            </label>}
+            {promotionDestination === "class" && !promotionClasses.length && <p className="mt-3 text-sm text-muted-foreground">Create a class for the next level first, or choose Waiting list / Freeze student.</p>}
+            <Button type="button" className="mt-4 w-full" onClick={() => void promoteStudent()} disabled={promotionDestination === "class" ? !promotionClassId || !promotionClasses.length : false}>Confirm</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

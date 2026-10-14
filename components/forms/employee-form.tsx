@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AtSign, Copy, KeyRound, RefreshCw, UserPlus } from "lucide-react";
+import { AtSign, Copy, KeyRound, RefreshCw, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -110,6 +110,25 @@ export function EmployeeForm({ leadFiles, employees }: { leadFiles: LeadFile[]; 
     setResult(response.ok ? `New password: ${json.password}` : json.error);
   }
 
+  async function deleteEmployee() {
+    if (!selected) return;
+    if (selected.id === "local-admin") {
+      setResult("You cannot delete the account currently in use.");
+      return;
+    }
+    if (!window.confirm(`Delete ${selected.full_name}'s account permanently?`)) return;
+    const response = await fetch("/api/employees", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: selected.id }) });
+    const json = await response.json();
+    if (!response.ok) {
+      setResult(json.error ?? "Employee could not be deleted.");
+      return;
+    }
+    setEmployeeList((current) => current.filter((employee) => employee.id !== selected.id));
+    setSelected(null);
+    setFullName(""); setEmail(""); setPassword(""); setRole("reception"); setActive(true); setSalesAccess(false); setAssignedFiles([]);
+    setResult("Employee account deleted.");
+  }
+
   return (
     <div className="space-y-6">
       <div className="border-b border-[#DD0000] pb-4">
@@ -172,7 +191,7 @@ export function EmployeeForm({ leadFiles, employees }: { leadFiles: LeadFile[]; 
             <label className="flex items-center gap-2 text-sm"><input checked={active} type="checkbox" onChange={(e) => setActive(e.target.checked)} /> Active</label>
             <div className="flex flex-wrap gap-2">
               <Button><UserPlus size={16} /> {isEdit ? "Update Permissions" : "Create Employee & Send Login"}</Button>
-              {isEdit && <Button type="button" variant="outline" onClick={resetPassword}><KeyRound size={16} /> Generate new password</Button>}
+              {isEdit && <><Button type="button" variant="outline" onClick={resetPassword}><KeyRound size={16} /> Generate new password</Button><Button type="button" variant="destructive" onClick={() => void deleteEmployee()}><Trash2 size={16} /> Delete employee</Button></>}
             </div>
             {result && <div className="flex items-center justify-between rounded-md bg-muted p-3 text-sm"><span>{result}</span><Button type="button" variant="ghost" size="icon" title="Copy account details" onClick={() => navigator.clipboard.writeText(result)}><Copy size={16} /></Button></div>}
           </form>

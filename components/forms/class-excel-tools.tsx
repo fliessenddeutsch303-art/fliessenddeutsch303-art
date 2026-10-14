@@ -61,11 +61,11 @@ export function ClassExcelTools({ rows, teachers, selectedCount = 0 }: { rows: C
 
   return (
     <div className="flex flex-wrap gap-2">
-      <Button type="button" variant="outline" onClick={exportClasses}><Download size={16} /> {selectedCount ? `Export Selected (${selectedCount})` : "Export Classes"}</Button>
+      <Button type="button" variant="outline" onClick={exportClasses}><Upload size={16} /> {selectedCount ? `Export Selected (${selectedCount})` : "Export Classes"}</Button>
       <label>
         <input className="hidden" type="file" accept=".xlsx,.xls,.csv" onChange={(event) => event.target.files?.[0] && importClasses(event.target.files[0])} />
         <span className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border bg-white px-4 text-sm font-medium hover:bg-muted">
-          <Upload size={16} /> Import Classes
+          <Download size={16} /> Import Classes
         </span>
       </label>
     </div>

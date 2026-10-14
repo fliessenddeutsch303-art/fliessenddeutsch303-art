@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Download, Snowflake } from "lucide-react";
+import { CheckCircle2, Snowflake, Upload } from "lucide-react";
 import { StudentAttendanceCell } from "@/components/tables/student-attendance-cell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,10 +81,9 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote }: { rows:
   const selectedRows = visibleRows.filter((row) => selected.has(String(row.id)));
   const exportRows = selectedRows.length ? selectedRows : visibleRows;
   const promotingStudent = promotingId ? rows.find((row) => String(row.id) === promotingId) : null;
-  const matchingPromotionClasses = promotingStudent
-    ? classes.filter((klass) => !klass.level || !promotingStudent.next_level || klass.level === promotingStudent.next_level)
+  const promotionClasses = promotingStudent && promotingStudent.next_level
+    ? classes.filter((klass) => klass.level === promotingStudent.next_level)
     : [];
-  const promotionClasses = matchingPromotionClasses.length ? matchingPromotionClasses : classes;
 
   function toggle(id: string) {
     setSelected((current) => {
@@ -169,18 +168,18 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote }: { rows:
         <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label="From date" />
         <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label="To date" />
         <Button type="button" variant="outline" onClick={exportStudents} disabled={!exportRows.length}>
-          <Download size={16} />
+          <Upload size={16} />
           {selectedRows.length ? `Export Selected (${selectedRows.length})` : `Export Filtered (${visibleRows.length})`}
         </Button>
       </div>
 
       <div className="max-h-[70vh] overflow-auto rounded-lg border bg-white">
-        <table className="w-full min-w-[1680px] text-sm">
+        <table dir="rtl" className="w-full min-w-[1680px] text-right text-sm [&_th]:align-middle [&_td]:align-middle">
           <thead className="sticky top-0 z-10 bg-muted">
             <tr>
-              <th className="px-4 py-3 text-left"><input type="checkbox" checked={visibleRows.length > 0 && visibleRows.every((row) => selected.has(String(row.id)))} onChange={toggleAll} /></th>
+              <th className="px-4 py-3 text-center"><input type="checkbox" checked={visibleRows.length > 0 && visibleRows.every((row) => selected.has(String(row.id)))} onChange={toggleAll} /></th>
               {["Name", "Phone", "Email", "Level", "Tags", "Class", "Teacher", "Online / Offline", "Price", "Paid", "Not Paid", "Payment Date", "Alert", "Freeze started", "Freeze finished", "Freeze status", "Finished / Stopped", "Comment", "Status", "Attendance", "Actions"].map((header) => (
-                <th key={header} className="px-4 py-3 text-left font-semibold">{header}</th>
+                <th key={header} className="px-4 py-3 text-right font-semibold">{header}</th>
               ))}
             </tr>
           </thead>
@@ -189,22 +188,27 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote }: { rows:
               const id = String(row.id);
               return (
                 <tr key={id} className="border-t">
-                  <td className="px-4 py-3"><input type="checkbox" checked={selected.has(id)} onChange={() => toggle(id)} /></td>
-                  <td className="px-4 py-3">{String(row.full_name ?? "")}</td>
-                  <td className="px-4 py-3">{String(row.phone ?? "")}</td>
-                  <td className="px-4 py-3">{String(row.email ?? "")}</td>
-                  <td className="px-4 py-3">{String(row.level ?? "")}</td>
-                  <td className="px-4 py-3">{tagsText(row)}</td>
-                  <td className="px-4 py-3">{className(row)}</td>
-                  <td className="px-4 py-3">{teacherName(row)}</td>
-                  <td className="px-4 py-3">{row.learning_mode === "online" ? "Online" : "Offline"}</td>
-                  <td className="px-4 py-3">{formatMoney(Number(row.total_price ?? 0))}</td>
-                  <td className="px-4 py-3">{formatMoney(Number(row.amount_paid ?? 0))}</td>
-                  <td className="px-4 py-3">{formatMoney(Math.max(0, Number(row.total_price ?? 0) - Number(row.amount_paid ?? 0)))}</td>
-                  <td className="px-4 py-3">{String(row.payment_due_date ?? "")}</td>
-                  <td className="px-4 py-3">{paymentStatus(row)}</td>
-                  <td className="px-4 py-3">{String(row.freeze_start_date ?? "")}</td>
-                  <td className="px-4 py-3">{String(row.freeze_end_date ?? "")}</td>
+                  <td className="px-4 py-3 text-center"><input type="checkbox" checked={selected.has(id)} onChange={() => toggle(id)} /></td>
+                  <td className="min-w-[150px] whitespace-nowrap px-4 py-3">{String(row.full_name ?? "")}</td>
+                  <td className="whitespace-nowrap px-4 py-3">{String(row.phone ?? "")}</td>
+                  <td className="min-w-[190px] whitespace-nowrap px-4 py-3">{String(row.email ?? "")}</td>
+                  <td className="whitespace-nowrap px-4 py-3">{String(row.level ?? "")}</td>
+                  <td className="max-w-[180px] px-4 py-3 break-words">{tagsText(row)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex min-w-[150px] flex-col items-start gap-2">
+                      <span>{className(row)}</span>
+                      {onPromote && row.promotion_candidate === true && <Button type="button" size="sm" variant="outline" onClick={() => { setPromotingId(id); setPromotionClassId(""); setPromotionMessage(""); }}>Promote to next class</Button>}
+                    </div>
+                  </td>
+                  <td className="min-w-[120px] px-4 py-3">{teacherName(row)}</td>
+                  <td className="whitespace-nowrap px-4 py-3">{row.learning_mode === "online" ? "Online" : "Offline"}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center">{formatMoney(Number(row.total_price ?? 0))}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center">{formatMoney(Number(row.amount_paid ?? 0))}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center">{formatMoney(Math.max(0, Number(row.total_price ?? 0) - Number(row.amount_paid ?? 0)))}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center">{String(row.payment_due_date ?? "")}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center">{paymentStatus(row)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center">{String(row.freeze_start_date ?? "")}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center">{String(row.freeze_end_date ?? "")}</td>
                   <td className="px-4 py-3">{freezeStatus(row) === "active" ? <Badge className="border-blue-200 bg-blue-50 text-blue-700"><Snowflake size={15} /> Active</Badge> : freezeStatus(row) === "expired" ? <Badge className="border-red-200 bg-red-50 text-red-700">Expired</Badge> : ""}</td>
                   <td className="px-4 py-3">{row.level_completed_stopped ? <Badge className="border-yellow-200 bg-yellow-50 text-yellow-700"><CheckCircle2 size={15} /> Finished level</Badge> : ""}</td>
                   <td className="px-4 py-3">{String(row.payment_comment ?? "")}</td>
@@ -215,7 +219,6 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote }: { rows:
                       <Button asChild size="sm" variant="outline"><Link href={`/admin/students/${id}`}>Profile</Link></Button>
                       <Button asChild size="sm" variant="outline"><Link href={`/receipts/student/${id}`}>Receipt</Link></Button>
                       {onEdit && <Button size="sm" variant="outline" onClick={() => onEdit(row)}>Edit</Button>}
-                      {onPromote && row.promotion_candidate === true && <Button size="sm" variant="outline" onClick={() => { setPromotingId(id); setPromotionClassId(""); setPromotionMessage(""); }}>Promote</Button>}
                     </div>
                   </td>
                 </tr>
@@ -243,7 +246,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote }: { rows:
                 {promotionClasses.map((klass) => <option key={klass.id} value={klass.id}>{klass.name}{klass.level ? ` · ${klass.level}` : ""}</option>)}
               </Select>
             </label>
-            {!promotionClasses.length && <p className="mt-3 text-sm text-muted-foreground">Create the next-level class first, then return here to promote this student.</p>}
+            {!promotionClasses.length && <p className="mt-3 text-sm text-muted-foreground">Create a class for the next level first, then return here to promote this student.</p>}
             <Button className="mt-4 w-full" onClick={() => void submitPromotion(promotingStudent)} disabled={!promotionClassId || !promotionClasses.length}>Confirm promotion</Button>
           </div>
         </div>

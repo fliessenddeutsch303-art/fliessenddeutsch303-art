@@ -25,7 +25,9 @@ export default async function StudentsFollowUpPage() {
     const klass = classRows.find((item) => item.id === student.class_id);
     const teacher = teacherRows.find((item) => item.id === klass?.teacher_id);
     const studentExams = (exams.data ?? []).filter((item) => item.student_id === student.id);
-    const latestExam = studentExams[0];
+    // Ignore newer quiz/main-test rows without a level result. Promotion is
+    // based on the latest completed placement result.
+    const latestExam = studentExams.find((item) => item.exam_type !== "quiz" && item.level_result);
     return {
       ...student,
       class_name: klass?.name ?? "",

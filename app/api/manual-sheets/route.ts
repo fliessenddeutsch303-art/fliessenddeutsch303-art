@@ -29,3 +29,15 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(request: Request) {
+  const { supabase, user, profile } = await getCurrentUser(["admin", "sales"]);
+  const body = await request.json() as { id?: string };
+  if (!body.id) return NextResponse.json({ error: "Sheet id is required" }, { status: 400 });
+
+  let query = supabase.from("manual_sheets").delete().eq("id", body.id);
+  if (profile.role !== "admin") query = query.eq("owner_id", user.id);
+  const { error } = await query;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}

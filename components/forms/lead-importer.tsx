@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
-import { Upload } from "lucide-react";
+import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -49,7 +49,7 @@ export function LeadImporter({ reps }: { reps: User[] }) {
       <CardHeader><CardTitle>Upload Lead File</CardTitle></CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 md:grid-cols-3"><Input value={campaign} onChange={(e) => setCampaign(e.target.value)} placeholder="Campaign name" /><Select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>{reps.map((rep) => <option key={rep.id} value={rep.id}>{rep.full_name}</option>)}</Select><Input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => e.target.files?.[0] && parseFile(e.target.files[0])} /></div>
-        {rows.length > 0 && <div className="space-y-3"><div className="grid gap-3 md:grid-cols-2"><Select value={nameCol} onChange={(e) => setNameCol(e.target.value)}>{columns.map((col) => <option key={col}>{col}</option>)}</Select><Select value={phoneCol} onChange={(e) => setPhoneCol(e.target.value)}>{columns.map((col) => <option key={col}>{col}</option>)}</Select></div><div className="overflow-auto rounded-md border"><table className="w-full text-sm"><tbody>{rows.slice(0, 10).map((row, i) => <tr key={i} className="border-t"><td className="p-2">{row[nameCol]}</td><td className="p-2">{row[phoneCol]}</td></tr>)}</tbody></table></div><Button onClick={importRows}><Upload size={16} /> Confirm Import</Button></div>}
+        {rows.length > 0 && <div className="space-y-3"><div className="grid gap-3 md:grid-cols-2"><Select value={nameCol} onChange={(e) => setNameCol(e.target.value)}>{columns.map((col) => <option key={col}>{col}</option>)}</Select><Select value={phoneCol} onChange={(e) => setPhoneCol(e.target.value)}>{columns.map((col) => <option key={col}>{col}</option>)}</Select></div><div className="overflow-auto rounded-md border"><table className="w-full text-sm"><tbody>{rows.slice(0, 10).map((row, i) => <tr key={i} className="border-t"><td className="p-2">{row[nameCol]}</td><td className="p-2">{row[phoneCol]}</td></tr>)}</tbody></table></div><Button onClick={importRows}><Download size={16} /> Confirm Import</Button></div>}
         {message && <p className="text-sm text-muted-foreground">{message}</p>}
       </CardContent>
     </Card>

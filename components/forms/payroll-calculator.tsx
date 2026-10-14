@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Printer, Clipboard, Download } from "lucide-react";
+import { Printer, Clipboard, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -50,7 +50,7 @@ export function PayrollCalculator() {
           <Button onClick={calculate}>Calculate All</Button>
           <Button variant="outline" onClick={() => window.print()}><Printer size={16} /> Print</Button>
           <Button variant="outline" onClick={copy}><Clipboard size={16} /> Copy Table</Button>
-          <Button variant="outline" onClick={exportPayroll} disabled={!rows.length}><Download size={16} /> Export Excel</Button>
+          <Button variant="outline" onClick={exportPayroll} disabled={!rows.length}><Upload size={16} /> Export Excel</Button>
         </div>
         <table className="w-full rounded-lg border text-sm">
           <thead className="bg-muted"><tr><th className="p-3 text-left">Employee</th><th>Role</th><th>Pay type</th><th>Hours</th><th>Sessions</th><th>Base Pay</th><th>Bonuses</th><th>Deductions</th><th>NET PAYABLE</th></tr></thead>

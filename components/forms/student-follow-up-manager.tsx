@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type FocusEvent, type MouseEvent, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Edit2, MessageSquarePlus, Printer, Save, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,23 @@ function last<T>(items: T[]) {
   return items[0];
 }
 
+function attendanceInfo(student: StudentFollowUp) {
+  const present = student.attendance.filter((item) => item.status === "present" || item.status === "late").length;
+  const absent = student.attendance.filter((item) => item.status === "absent").length;
+  const excused = student.attendance.filter((item) => item.status === "excused").length;
+  const total = student.attendance.length;
+  const rate = total ? Math.round((present / total) * 100) : null;
+  const status = rate === null ? "no_records" : rate >= 75 ? "regular" : rate >= 50 ? "at_risk" : "skipping";
+  return { present, absent, excused, total, rate, status };
+}
+
+function presenceLevel(rate: number | null) {
+  if (rate === null) return { label: "No records", dot: "bg-slate-300", text: "text-slate-600" };
+  if (rate >= 95) return { label: "Regular", dot: "bg-green-500", text: "text-green-700" };
+  if (rate >= 76) return { label: "Not bad", dot: "bg-yellow-400", text: "text-yellow-700" };
+  return { label: "Skipping", dot: "bg-red-500", text: "text-red-700" };
+}
+
 function displayValue(value: string | null | undefined, lang: Lang) {
   if (lang === "ar") {
     return value === "offline" ? "أوفلاين" : value === "online" ? "أونلاين" : value === "active" ? "نشط" : value === "inactive" ? "غير نشط" : value === "graduated" ? "متخرج" : value ?? "";
@@ -74,32 +91,35 @@ function displayValue(value: string | null | undefined, lang: Lang) {
 
 const copy = {
   en: {
-    followUp: "Students Follow Up", edit: "Edit", close: "Close editor", fullName: "Full name", phone: "Phone", email: "Email", level: "Level", tags: "Tags", noClass: "No class", offline: "Offline", online: "Online", active: "Active", inactive: "Inactive", graduated: "Graduated", totalPrice: "Total price", paid: "Amount paid", paymentDate: "Payment date", paymentComment: "Comments about payment/student...", saveChanges: "Save student changes", rating: "Rating 1-5", teacherComment: "Teacher comment about this student...", saveComment: "Save comment", commentSaved: "Comment saved", studentUpdated: "Student updated", teacherHint: "Add or edit your comment for each student from this list.", adminHint: "Hover over a student name to see the complete student card.", editHint: "Use Edit to update student details, or Print/PDF for a full printable profile.", printHint: "Use Print/PDF for a full printable profile.", search: "Search follow up...", student: "Student", className: "Class", teacher: "Teacher", mode: "Mode", notPaid: "Not paid", latestExam: "Latest exam", latestFeedback: "Latest feedback", staffComment: "Staff comment", actions: "Actions", print: "Print/PDF", comment: "Comment", noStudents: "No students found.", noEmail: "No email", noTeacher: "No teacher", schedule: "Schedule", price: "Price", paymentCommentLabel: "Payment comment", accountNotes: "Account notes", none: "None", attendance: "Latest attendance", workerComment: "Student comment about staff", status: "Status", promotion: "Next level", promotionCandidates: "Promotion candidates", exportPromotion: "Export promotion list", candidate: "Ready to continue",
+    followUp: "Students Follow Up", edit: "Edit", close: "Close editor", fullName: "Full name", phone: "Phone", email: "Email", level: "Level", tags: "Tags", noClass: "No class", offline: "Offline", online: "Online", active: "Active", inactive: "Inactive", graduated: "Graduated", totalPrice: "Total price", paid: "Amount paid", paymentDate: "Payment date", paymentComment: "Comments about payment/student...", saveChanges: "Save student changes", rating: "Rating 1-5", teacherComment: "Teacher comment about this student...", saveComment: "Save comment", commentSaved: "Comment saved", studentUpdated: "Student updated", teacherHint: "Add or edit your comment for each student from this list.", adminHint: "Hover over a student name to see the complete student card.", editHint: "Use Edit to update student details, or Print/PDF for a full printable profile.", printHint: "Use Print/PDF for a full printable profile.", search: "Search follow up...", student: "Student", className: "Class", teacher: "Teacher", mode: "Mode", presence: "Presence", presentCount: "Presented", skippedCount: "Skipped", notPaid: "Not paid", latestExam: "Latest exam", latestFeedback: "Latest feedback", staffComment: "Staff comment", actions: "Actions", print: "Print/PDF", comment: "Comment", noStudents: "No students found.", noEmail: "No email", noTeacher: "No teacher", schedule: "Schedule", price: "Price", paymentCommentLabel: "Payment comment", accountNotes: "Account notes", none: "None", attendance: "Attendance", latestAttendance: "Latest attendance", workerComment: "Student comment about staff", status: "Status", promotion: "Next level", promotionCandidates: "Promotion candidates", exportPromotion: "Export promotion list", candidate: "Ready to continue", all: "All", filterLevel: "All levels", filterTeacher: "All teachers", filterClass: "All classes", filterMode: "Online / offline", filterStatus: "All statuses", filterTag: "Tag...", filterAttendance: "Attendance", regular: "Regular", atRisk: "At risk", skipping: "Skipping", noRecords: "No records", notBad: "Not bad",
   },
   ar: {
-    followUp: "متابعة الطلاب", edit: "تعديل", close: "إغلاق التعديل", fullName: "الاسم بالكامل", phone: "رقم الهاتف", email: "البريد الإلكتروني", level: "المستوى", tags: "التصنيفات", noClass: "بدون فصل", offline: "أوفلاين", online: "أونلاين", active: "نشط", inactive: "غير نشط", graduated: "متخرج", totalPrice: "السعر الإجمالي", paid: "المدفوع", paymentDate: "تاريخ السداد", paymentComment: "ملاحظات السداد أو الطالب...", saveChanges: "حفظ تعديلات الطالب", rating: "التقييم من 1 إلى 5", teacherComment: "تعليق المدرس على الطالب...", saveComment: "حفظ التعليق", commentSaved: "تم حفظ التعليق", studentUpdated: "تم تحديث بيانات الطالب", teacherHint: "أضف أو عدّل تعليقك على كل طالب من هذه القائمة.", adminHint: "مرر المؤشر فوق اسم الطالب لعرض بطاقة بياناته كاملة.", editHint: "استخدم تعديل لتحديث بيانات الطالب أو طباعة ملف كامل بصيغة PDF.", printHint: "استخدم طباعة / PDF لعرض ملف الطالب كاملًا.", search: "البحث في المتابعة...", student: "الطالب", className: "الفصل", teacher: "المدرس", mode: "النظام", notPaid: "المتبقي", latestExam: "آخر اختبار", latestFeedback: "آخر تقييم", staffComment: "تعليق على موظف", actions: "الإجراءات", print: "طباعة / PDF", comment: "تعليق", noStudents: "لا يوجد طلاب.", noEmail: "لا يوجد بريد", noTeacher: "لا يوجد مدرس", schedule: "الجدول", price: "السعر", paymentCommentLabel: "تعليق السداد", accountNotes: "ملاحظات الحساب", none: "لا يوجد", attendance: "آخر حضور", workerComment: "تعليق الطالب على الموظف", status: "الحالة", promotion: "المستوى التالي", promotionCandidates: "الطلاب المرشحون للانتقال", exportPromotion: "تصدير قائمة المرشحين", candidate: "جاهز للانتقال",
+    followUp: "متابعة الطلاب", edit: "تعديل", close: "إغلاق التعديل", fullName: "الاسم بالكامل", phone: "رقم الهاتف", email: "البريد الإلكتروني", level: "المستوى", tags: "التصنيفات", noClass: "بدون فصل", offline: "أوفلاين", online: "أونلاين", active: "نشط", inactive: "غير نشط", graduated: "متخرج", totalPrice: "السعر الإجمالي", paid: "المدفوع", paymentDate: "تاريخ السداد", paymentComment: "ملاحظات السداد أو الطالب...", saveChanges: "حفظ تعديلات الطالب", rating: "التقييم من 1 إلى 5", teacherComment: "تعليق المدرس على الطالب...", saveComment: "حفظ التعليق", commentSaved: "تم حفظ التعليق", studentUpdated: "تم تحديث بيانات الطالب", teacherHint: "أضف أو عدّل تعليقك على كل طالب من هذه القائمة.", adminHint: "مرر المؤشر فوق اسم الطالب لعرض بطاقة بياناته كاملة.", editHint: "استخدم تعديل لتحديث بيانات الطالب أو طباعة ملف كامل بصيغة PDF.", printHint: "استخدم طباعة / PDF لعرض ملف الطالب كاملًا.", search: "البحث في المتابعة...", student: "الطالب", className: "الفصل", teacher: "المدرس", mode: "النظام", presence: "الانتظام", presentCount: "حضر", skippedCount: "تغيب", notPaid: "المتبقي", latestExam: "آخر اختبار", latestFeedback: "آخر تقييم", staffComment: "تعليق على موظف", actions: "الإجراءات", print: "طباعة / PDF", comment: "تعليق", noStudents: "لا يوجد طلاب.", noEmail: "لا يوجد بريد", noTeacher: "لا يوجد مدرس", schedule: "الجدول", price: "السعر", paymentCommentLabel: "تعليق السداد", accountNotes: "ملاحظات الحساب", none: "لا يوجد", attendance: "الحضور", latestAttendance: "آخر حضور", workerComment: "تعليق الطالب على الموظف", status: "الحالة", promotion: "المستوى التالي", promotionCandidates: "الطلاب المرشحون للانتقال", exportPromotion: "تصدير قائمة المرشحين", candidate: "جاهز للانتقال", all: "الكل", filterLevel: "كل المستويات", filterTeacher: "كل المدرسين", filterClass: "كل الفصول", filterMode: "أونلاين / أوفلاين", filterStatus: "كل الحالات", filterTag: "التصنيف...", filterAttendance: "الحضور", regular: "منتظم", atRisk: "يحتاج متابعة", skipping: "متغيب", noRecords: "لا توجد سجلات", notBad: "مقبول",
   },
 } as const;
 
-function StudentHoverCard({ student, position, lang }: { student: StudentFollowUp; position: { left: number; top: number }; lang: Lang }) {
+function StudentOverlay({ student, lang, onClose }: { student: StudentFollowUp; lang: Lang; onClose: () => void }) {
   const labels = copy[lang];
   const isRtl = lang === "ar";
   const latestExam = last(student.exams);
   const latestFeedback = last(student.feedback);
   const latestAttendance = last(student.attendance);
   const latestWorkerComment = last(student.worker_comments ?? []);
+  const attendance = attendanceInfo(student);
   return (
-    <div
-      dir={isRtl ? "rtl" : "ltr"}
-      className={`pointer-events-none fixed z-[100] max-h-[82vh] w-[min(520px,calc(100vw-24px))] overflow-auto rounded-lg border bg-white p-5 text-sm shadow-xl ${isRtl ? "text-right" : "text-left"}`}
-      style={{ left: position.left, top: position.top, direction: isRtl ? "rtl" : "ltr" }}
-    >
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label={student.full_name} onClick={onClose}>
+      <div
+        dir={isRtl ? "rtl" : "ltr"}
+        className={`max-h-[88vh] w-full max-w-2xl overflow-auto rounded-xl border border-accent bg-white p-5 text-sm shadow-2xl ${isRtl ? "text-right" : "text-left"}`}
+        style={{ direction: isRtl ? "rtl" : "ltr" }}
+        onClick={(event) => event.stopPropagation()}
+      >
       <div className="mb-3 flex items-start justify-between gap-3 border-b pb-3">
         <div>
           <h3 className="text-lg font-semibold text-primary">{student.full_name}</h3>
           <p dir="ltr" className="text-left text-sm text-muted-foreground">{student.phone} · {student.email ?? labels.noEmail}</p>
         </div>
-        <Badge>{student.status ?? "active"}</Badge>
+        <div className="flex items-center gap-2"><Badge>{student.status ?? "active"}</Badge><Button type="button" size="icon" variant="outline" onClick={onClose} aria-label={labels.close}><X size={16} /></Button></div>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         <p><span className="font-semibold">{labels.level}:</span> {student.level ?? ""}</p>
@@ -118,8 +138,10 @@ function StudentHoverCard({ student, position, lang }: { student: StudentFollowU
         <p><span className="font-semibold">{labels.accountNotes}:</span> {student.account_notes.slice(0, 2).join(" | ") || labels.none}</p>
         <p><span className="font-semibold">{labels.latestExam}:</span> {latestExam ? `${latestExam.type} · ${latestExam.level} · ${latestExam.score} · ${latestExam.comment}` : labels.none}</p>
         <p><span className="font-semibold">{labels.latestFeedback}:</span> {latestFeedback ? `${latestFeedback.source} ${latestFeedback.rating ? `(${latestFeedback.rating}/5)` : ""}: ${latestFeedback.comment}` : labels.none}</p>
-        <p><span className="font-semibold">{labels.attendance}:</span> {latestAttendance ? `${latestAttendance.date} · ${displayValue(latestAttendance.status, lang)}` : labels.none}</p>
+        <p><span className="font-semibold">{labels.attendance}:</span> {attendance.rate === null ? labels.noRecords : `${attendance.rate}% · ${attendance.present}/${attendance.total} (${attendance.absent} absent)`}</p>
+        <p><span className="font-semibold">{labels.latestAttendance}:</span> {latestAttendance ? `${latestAttendance.date} · ${displayValue(latestAttendance.status, lang)}` : labels.none}</p>
         <p><span className="font-semibold">{labels.workerComment}:</span> {latestWorkerComment ? `${latestWorkerComment.worker} (${latestWorkerComment.role}): ${latestWorkerComment.comment}` : labels.none}</p>
+      </div>
       </div>
     </div>
   );
@@ -150,16 +172,39 @@ export function StudentFollowUpManager({
   const [comment, setComment] = useState("");
   const [rating, setRating] = useState("");
   const [query, setQuery] = useState("");
+  const [levelFilter, setLevelFilter] = useState("");
+  const [teacherFilter, setTeacherFilter] = useState("");
+  const [classFilter, setClassFilter] = useState("");
+  const [modeFilter, setModeFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
+  const [attendanceFilter, setAttendanceFilter] = useState("");
   const [saved, setSaved] = useState("");
-  const [hovered, setHovered] = useState<{ student: StudentFollowUp; left: number; top: number } | null>(null);
+  const [hovered, setHovered] = useState<{ student: StudentFollowUp } | null>(null);
   const [selectedPromotionIds, setSelectedPromotionIds] = useState<Set<string>>(new Set());
   const isTeacherMode = mode === "teacher";
 
   const visible = useMemo(() => {
     const q = query.toLowerCase().trim();
-    if (!q) return students;
-    return students.filter((student) => JSON.stringify(student).toLowerCase().includes(q));
-  }, [query, students]);
+    const tag = tagFilter.toLowerCase().trim();
+    return students.filter((student) => {
+      const attendance = attendanceInfo(student);
+      const matchesQuery = !q || JSON.stringify(student).toLowerCase().includes(q);
+      const matchesLevel = !levelFilter || student.level === levelFilter;
+      const matchesTeacher = !teacherFilter || student.teacher_name === teacherFilter;
+      const matchesClass = !classFilter || student.class_id === classFilter;
+      const matchesMode = !modeFilter || student.learning_mode === modeFilter;
+      const matchesStatus = !statusFilter || student.status === statusFilter;
+      const matchesTag = !tag || (student.tags ?? []).some((item) => item.toLowerCase().includes(tag));
+      const matchesAttendance = !attendanceFilter || attendance.status === attendanceFilter;
+      return matchesQuery && matchesLevel && matchesTeacher && matchesClass && matchesMode && matchesStatus && matchesTag && matchesAttendance;
+    });
+  }, [attendanceFilter, classFilter, levelFilter, modeFilter, query, statusFilter, students, tagFilter, teacherFilter]);
+
+  const filterOptions = useMemo(() => ({
+    levels: [...new Set(students.map((student) => student.level).filter(Boolean))] as string[],
+    teachers: [...new Set(students.map((student) => student.teacher_name).filter(Boolean))] as string[],
+  }), [students]);
 
   const promotionCandidates = useMemo(() => students.filter((student) => student.promotion_candidate), [students]);
 
@@ -314,17 +359,6 @@ export function StudentFollowUpManager({
     setSaved(labels.studentUpdated);
   }
 
-  function showStudentOverlay(student: StudentFollowUp, event: MouseEvent<HTMLElement> | FocusEvent<HTMLElement>) {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const width = Math.min(520, window.innerWidth - 24);
-    const estimatedHeight = 420;
-    const preferredLeft = rect.left - width - 12;
-    const left = preferredLeft >= 12 ? preferredLeft : Math.min(rect.right + 12, Math.max(12, window.innerWidth - width - 12));
-    const opensBelow = rect.bottom + estimatedHeight + 12 < window.innerHeight;
-    const top = opensBelow ? rect.bottom + 8 : Math.max(12, rect.top - estimatedHeight - 8);
-    setHovered({ student, left, top });
-  }
-
   return (
     <div dir={lang === "ar" ? "rtl" : "ltr"} className="space-y-6">
       <Card>
@@ -393,17 +427,24 @@ export function StudentFollowUpManager({
         </Card>
       )}
 
-      <div className="flex max-w-md gap-2">
-        <Input placeholder={labels.search} value={query} onChange={(event) => setQuery(event.target.value)} />
+      <div className="grid gap-2 md:grid-cols-4 lg:grid-cols-8">
+        <Input className="lg:col-span-2" placeholder={labels.search} value={query} onChange={(event) => setQuery(event.target.value)} />
+        <Select value={levelFilter} onChange={(event) => setLevelFilter(event.target.value)}><option value="">{labels.filterLevel}</option>{filterOptions.levels.map((item) => <option key={item} value={item}>{item}</option>)}</Select>
+        <Select value={teacherFilter} onChange={(event) => setTeacherFilter(event.target.value)}><option value="">{labels.filterTeacher}</option>{filterOptions.teachers.map((item) => <option key={item} value={item}>{item}</option>)}</Select>
+        <Select value={classFilter} onChange={(event) => setClassFilter(event.target.value)}><option value="">{labels.filterClass}</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>
+        <Select value={modeFilter} onChange={(event) => setModeFilter(event.target.value)}><option value="">{labels.filterMode}</option><option value="online">{labels.online}</option><option value="offline">{labels.offline}</option></Select>
+        <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">{labels.filterStatus}</option><option value="active">{labels.active}</option><option value="inactive">{labels.inactive}</option><option value="graduated">{labels.graduated}</option></Select>
+        <Input placeholder={labels.filterTag} value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} />
+        <Select value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value)}><option value="">{labels.filterAttendance}</option><option value="regular">{labels.regular}</option><option value="at_risk">{labels.atRisk}</option><option value="skipping">{labels.skipping}</option><option value="no_records">{labels.noRecords}</option></Select>
       </div>
 
       <div className="max-h-[72vh] overflow-auto rounded-lg border bg-white">
-        <table className="w-full min-w-[1320px] text-sm">
+        <table dir={lang === "ar" ? "rtl" : "ltr"} className="w-full min-w-[2050px] whitespace-nowrap text-sm">
           <thead className="sticky top-0 z-20 bg-muted">
             <tr>
               {(isTeacherMode
-                ? [labels.student, labels.phone, labels.level, labels.className, labels.mode, labels.teacherComment, labels.actions]
-                : ["", labels.student, labels.phone, labels.level, labels.className, labels.teacher, labels.mode, labels.paid, labels.notPaid, labels.latestExam, labels.promotion, labels.latestFeedback, ...(visible.some((student) => (student.worker_comments ?? []).length) ? [labels.staffComment] : []), labels.actions]
+                ? [labels.student, labels.phone, labels.level, labels.className, labels.mode, labels.attendance, labels.presence, labels.teacherComment, labels.actions]
+                : ["", labels.student, labels.phone, labels.level, labels.className, labels.teacher, labels.mode, labels.attendance, labels.presence, labels.paid, labels.notPaid, labels.latestExam, labels.promotion, labels.latestFeedback, ...(visible.some((student) => (student.worker_comments ?? []).length) ? [labels.staffComment] : []), labels.actions]
               ).map((header, index) => <th key={`${header}-${index}`} className={`px-4 py-3 font-semibold ${lang === "ar" ? "text-right" : "text-left"}`}>{!isTeacherMode && index === 0 ? <input type="checkbox" aria-label="Select promotion candidates" checked={promotionCandidates.length > 0 && promotionCandidates.every((student) => selectedPromotionIds.has(student.id))} onChange={toggleAllPromotionSelection} /> : header}</th>)}
             </tr>
           </thead>
@@ -413,46 +454,50 @@ export function StudentFollowUpManager({
               const latestFeedback = isTeacherMode ? latestTeacherFeedback(student) : last(student.feedback);
               const latestWorkerComment = last(student.worker_comments ?? []);
               const showWorkerComments = visible.some((item) => (item.worker_comments ?? []).length);
+              const attendance = attendanceInfo(student);
+              const presence = presenceLevel(attendance.rate);
+              const presenceLabel = presence.label === "Regular" ? labels.regular : presence.label === "Not bad" ? labels.notBad : presence.label === "Skipping" ? labels.skipping : labels.noRecords;
               return (
                 <tr key={student.id} className="border-t">
                   {!isTeacherMode && <td className="px-4 py-3">{student.promotion_candidate ? <input type="checkbox" aria-label={`Select ${student.full_name}`} checked={selectedPromotionIds.has(student.id)} onChange={() => togglePromotionSelection(student.id)} /> : null}</td>}
-                  <td className="relative px-4 py-3">
+                  <td className="relative min-w-[155px] px-4 py-3">
                     {isTeacherMode ? (
                       <span className="font-semibold text-primary">{student.full_name}</span>
                     ) : (
                       <button
                         type="button"
                         className="font-semibold text-primary underline-offset-4 hover:underline"
-                        onMouseEnter={(event) => showStudentOverlay(student, event)}
-                        onMouseLeave={() => setHovered(null)}
-                        onFocus={(event) => showStudentOverlay(student, event)}
-                        onBlur={() => setHovered(null)}
+                        onClick={() => setHovered({ student })}
                       >
                         {student.full_name}
                       </button>
                     )}
                   </td>
-                  <td className="px-4 py-3">{student.phone}</td>
-                  <td className="px-4 py-3">{student.level}</td>
-                  <td className="px-4 py-3">{student.class_name}</td>
+                  <td className="min-w-[145px] px-4 py-3">{student.phone}</td>
+                  <td className="min-w-[80px] px-4 py-3">{student.level}</td>
+                  <td className="min-w-[150px] px-4 py-3">{student.class_name}</td>
                   {isTeacherMode ? (
                     <>
-                      <td className="px-4 py-3">{displayValue(student.learning_mode, lang)}</td>
-                      <td className="px-4 py-3">{latestFeedback?.comment ?? ""}</td>
+                      <td className="min-w-[120px] px-4 py-3">{displayValue(student.learning_mode, lang)}</td>
+                      <td className="min-w-[220px] px-4 py-3">{attendance.rate === null ? labels.noRecords : `${attendance.rate}% · ${labels.presentCount}: ${attendance.present} · ${labels.skippedCount}: ${attendance.absent}`}</td>
+                      <td className={`min-w-[125px] px-4 py-3 font-semibold ${presence.text}`}><span className={`mr-2 inline-block h-3 w-3 rounded-full ${presence.dot}`} aria-hidden="true" />{presenceLabel}</td>
+                      <td className="min-w-[260px] whitespace-normal px-4 py-3">{latestFeedback?.comment ?? ""}</td>
                     </>
                   ) : (
                     <>
-                      <td className="px-4 py-3">{student.teacher_name}</td>
-                      <td className="px-4 py-3">{displayValue(student.learning_mode, lang)}</td>
-                      <td className="px-4 py-3">{formatMoney(Number(student.amount_paid ?? 0))}</td>
-                      <td className="px-4 py-3">{formatMoney(balance(student))}</td>
-                      <td className="px-4 py-3">{latestExam ? `${latestExam.type} ${latestExam.level} ${latestExam.score}` : ""}</td>
-                      <td className="px-4 py-3">{student.promotion_candidate ? <Badge className="border-green-300 bg-green-50 text-green-700">{labels.candidate}: {student.next_level}</Badge> : ""}</td>
-                      <td className="px-4 py-3">{latestFeedback?.comment ?? ""}</td>
-                      {showWorkerComments && <td className="px-4 py-3">{latestWorkerComment ? `${latestWorkerComment.worker}: ${latestWorkerComment.comment}` : ""}</td>}
+                      <td className="min-w-[140px] px-4 py-3">{student.teacher_name}</td>
+                      <td className="min-w-[120px] px-4 py-3">{displayValue(student.learning_mode, lang)}</td>
+                      <td className="min-w-[220px] px-4 py-3">{attendance.rate === null ? labels.noRecords : `${attendance.rate}% · ${labels.presentCount}: ${attendance.present} · ${labels.skippedCount}: ${attendance.absent}`}</td>
+                      <td className={`min-w-[125px] px-4 py-3 font-semibold ${presence.text}`}><span className={`mr-2 inline-block h-3 w-3 rounded-full ${presence.dot}`} aria-hidden="true" />{presenceLabel}</td>
+                      <td className="min-w-[120px] px-4 py-3">{formatMoney(Number(student.amount_paid ?? 0))}</td>
+                      <td className="min-w-[120px] px-4 py-3">{formatMoney(balance(student))}</td>
+                      <td className="min-w-[150px] px-4 py-3">{latestExam ? `${latestExam.type} ${latestExam.level} ${latestExam.score}` : ""}</td>
+                      <td className="min-w-[150px] px-4 py-3">{student.promotion_candidate ? <Badge className="border-green-300 bg-green-50 text-green-700">{labels.candidate}: {student.next_level}</Badge> : ""}</td>
+                      <td className="min-w-[260px] whitespace-normal px-4 py-3">{latestFeedback?.comment ?? ""}</td>
+                      {showWorkerComments && <td className="min-w-[260px] whitespace-normal px-4 py-3">{latestWorkerComment ? `${latestWorkerComment.worker}: ${latestWorkerComment.comment}` : ""}</td>}
                     </>
                   )}
-                  <td className="px-4 py-3">
+                  <td className="min-w-[180px] px-4 py-3">
                     <div className="flex gap-2">
                       {canEdit && <Button size="sm" variant="outline" onClick={() => startEdit(student)}><Edit2 size={16} /> {labels.edit}</Button>}
                       {isTeacherMode && teacherId ? (
@@ -469,7 +514,7 @@ export function StudentFollowUpManager({
         </table>
         {!visible.length && <div className="p-8 text-center text-muted-foreground">{labels.noStudents}</div>}
       </div>
-      {hovered && <StudentHoverCard student={hovered.student} position={{ left: hovered.left, top: hovered.top }} lang={lang} />}
+      {hovered && <StudentOverlay student={hovered.student} lang={lang} onClose={() => setHovered(null)} />}
     </div>
   );
 }

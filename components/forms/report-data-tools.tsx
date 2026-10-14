@@ -82,12 +82,12 @@ export function ReportDataTools({ reportData }: { reportData: ReportData }) {
           <Select className="min-w-[230px]" value={section} onChange={(event) => setSection(event.target.value as ReportSection)}>
             {Object.entries(sectionNames).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </Select>
-          <Button type="button" variant="outline" onClick={() => exportSection(section)}><Download size={16} /> Export selected report</Button>
+          <Button type="button" variant="outline" onClick={() => exportSection(section)}><Upload size={16} /> Export selected report</Button>
           <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border bg-white px-4 text-sm font-medium hover:bg-muted">
-            <Upload size={16} /> Import selected report
+            <Download size={16} /> Import selected report
             <input className="hidden" type="file" accept=".xlsx,.xls,.csv" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importSection(file); event.currentTarget.value = ""; }} />
           </label>
-          <Button type="button" variant="secondary" onClick={() => Object.keys(sectionNames).forEach((name) => exportSection(name as ReportSection))}><Download size={16} /> Export all reports</Button>
+          <Button type="button" variant="secondary" onClick={() => Object.keys(sectionNames).forEach((name) => exportSection(name as ReportSection))}><Upload size={16} /> Export all reports</Button>
         </div>
         {message && <p role="status" className={`mt-3 text-sm ${error ? "text-red-700" : "text-green-700"}`}>{message}</p>}
         {snapshot[section] && <p className="mt-2 text-xs text-muted-foreground">A locally saved imported snapshot is being used for this section’s export. Live operational records remain unchanged.</p>}

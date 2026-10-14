@@ -11,7 +11,11 @@ export default async function AdminStudentsPage() {
   ]);
   const latestExamByStudent = new Map<string, { level_result?: string | null; score_percent?: number | null }>();
   for (const exam of exams.data ?? []) {
-    if (!latestExamByStudent.has(exam.student_id) && exam.exam_type !== "quiz") latestExamByStudent.set(exam.student_id, exam);
+    // A newer quiz or main-test row may not contain a level result. Keep the
+    // latest completed placement result so promotion candidates remain visible.
+    if (!latestExamByStudent.has(exam.student_id) && exam.exam_type !== "quiz" && exam.level_result) {
+      latestExamByStudent.set(exam.student_id, exam);
+    }
   }
   const rows = (students.data ?? []).map((student) => {
     const latestExam = latestExamByStudent.get(student.id);
