@@ -31,15 +31,22 @@ const mockStudentNames = [
 
 const db: Record<string, Row[]> = {
   users: [
-    { id: ids.admin, full_name: "Admin", email: "admin@local.test", role: "admin", is_active: true, permissions: {}, payroll_type: "monthly_salary", monthly_salary: 18000, monthly_wage: 0, hourly_rate: 0, password_hash: "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9", created_at: now },
-    { id: ids.reception, full_name: "Reception", email: "reception@local.test", role: "reception", is_active: true, permissions: {}, payroll_type: "monthly_salary", monthly_salary: 9000, monthly_wage: 0, hourly_rate: 0, password_hash: "5145dba3b6bda2d610d2c5c435a1c2481eefd3146b6a7e004ad73f794386e031", created_at: now },
-    { id: ids.sales, full_name: "Ahmed Sales", email: "sales@local.test", role: "sales", is_active: true, permissions: { assigned_files: [ids.file] }, payroll_type: "hourly", monthly_salary: 0, monthly_wage: 0, hourly_rate: 120, password_hash: "6bc0a63cb29c92306020c0a6bbc358cc4628db277dc06e253535e126517ad637", created_at: now },
-    { id: "local-sales-2", full_name: "Mona Sales", email: "sales2@local.test", role: "sales", is_active: true, permissions: { assigned_files: [ids.file] }, payroll_type: "hourly", monthly_salary: 0, monthly_wage: 0, hourly_rate: 130, password_hash: "6bc0a63cb29c92306020c0a6bbc358cc4628db277dc06e253535e126517ad637", created_at: now },
-    { id: ids.teacherUser, full_name: "Teacher", email: "teacher@local.test", role: "teacher", is_active: true, permissions: {}, payroll_type: "monthly_salary", monthly_salary: 0, monthly_wage: 0, hourly_rate: 0, password_hash: "cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416", created_at: now },
+    { id: ids.admin, full_name: "Admin", email: "admin@local.test", role: "admin", account_kind: "individual", is_active: true, permissions: {}, payroll_type: "monthly_salary", monthly_salary: 18000, monthly_wage: 0, hourly_rate: 0, password_hash: "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9", created_at: now },
+    { id: ids.reception, full_name: "Reception account", email: "reception@local.test", role: "reception", account_kind: "shared", is_active: true, permissions: {}, payroll_type: "monthly_salary", monthly_salary: 0, monthly_wage: 0, hourly_rate: 0, password_hash: "5145dba3b6bda2d610d2c5c435a1c2481eefd3146b6a7e004ad73f794386e031", created_at: now },
+    { id: ids.sales, full_name: "Sales account", email: "sales@local.test", role: "sales", account_kind: "shared", is_active: true, permissions: { assigned_files: [ids.file] }, payroll_type: "monthly_salary", monthly_salary: 0, monthly_wage: 0, hourly_rate: 0, password_hash: "6bc0a63cb29c92306020c0a6bbc358cc4628db277dc06e253535e126517ad637", created_at: now },
+    { id: ids.teacherUser, full_name: "Teacher account", email: "teacher@local.test", role: "teacher", account_kind: "individual", is_active: true, permissions: {}, payroll_type: "monthly_salary", monthly_salary: 0, monthly_wage: 0, hourly_rate: 0, password_hash: "cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416", created_at: now },
+  ],
+  employee_profiles: [
+    { id: "local-profile-reception-1", account_user_id: ids.reception, full_name: "Reception One", role: "reception", phone: "01000000101", is_active: true, payroll_type: "monthly_salary", monthly_salary: 9000, monthly_wage: 0, hourly_rate: 0, created_at: now, updated_at: now },
+    { id: "local-profile-reception-2", account_user_id: ids.reception, full_name: "Reception Two", role: "reception", phone: "01000000102", is_active: true, payroll_type: "monthly_salary", monthly_salary: 8500, monthly_wage: 0, hourly_rate: 0, created_at: now, updated_at: now },
+    { id: "local-profile-sales-1", account_user_id: ids.sales, full_name: "Ahmed Sales", role: "sales", phone: "01000000201", is_active: true, payroll_type: "hourly", monthly_salary: 0, monthly_wage: 0, hourly_rate: 120, created_at: now, updated_at: now },
+    { id: "local-profile-sales-2", account_user_id: ids.sales, full_name: "Mona Sales", role: "sales", phone: "01000000202", is_active: true, payroll_type: "hourly", monthly_salary: 0, monthly_wage: 0, hourly_rate: 130, created_at: now, updated_at: now },
+    { id: "local-profile-teacher-1", account_user_id: ids.teacherUser, full_name: "Herr Müller", role: "teacher", phone: "01000000001", is_active: true, payroll_type: "hourly", monthly_salary: 0, monthly_wage: 0, hourly_rate: 250, created_at: now, updated_at: now },
+    { id: "local-profile-teacher-2", account_user_id: ids.teacherUser, full_name: "Frau Schneider", role: "teacher", phone: "01000000002", is_active: true, payroll_type: "per_session", monthly_salary: 0, monthly_wage: 0, hourly_rate: 400, created_at: now, updated_at: now },
   ],
   teachers: [
-    { id: ids.teacher, user_id: ids.teacherUser, name: "Herr Müller", phone: "01000000001", portal_token: crypto.randomUUID().replaceAll("-", ""), pay_type: "hourly", base_rate: 250, created_at: now },
-    { id: ids.teacher2, user_id: null, name: "Frau Schneider", phone: "01000000002", portal_token: crypto.randomUUID().replaceAll("-", ""), pay_type: "per_session", base_rate: 400, created_at: now },
+    { id: ids.teacher, user_id: ids.teacherUser, employee_profile_id: "local-profile-teacher-1", name: "Herr Müller", phone: "01000000001", portal_token: crypto.randomUUID().replaceAll("-", ""), pay_type: "hourly", base_rate: 250, created_at: now },
+    { id: ids.teacher2, user_id: null, employee_profile_id: "local-profile-teacher-2", name: "Frau Schneider", phone: "01000000002", portal_token: crypto.randomUUID().replaceAll("-", ""), pay_type: "per_session", base_rate: 400, created_at: now },
   ],
   branches: [
     { id: ids.branch, name: "Main Branch", address: "Nasr City", phone: "01000000000", is_active: true, created_at: now },
@@ -77,8 +84,8 @@ const db: Record<string, Row[]> = {
     { id: "local-ta-1", teacher_id: ids.teacher, date: today, check_in: "10:00", check_out: "14:00", sessions_count: 0, notes: "Local sample", recorded_by: ids.reception },
   ],
   employee_attendance: [
-    { id: "local-ea-1", user_id: ids.sales, date: today, check_in: "09:00", check_out: "17:00", notes: "Sales shift", recorded_by: ids.admin, created_at: now },
-    { id: "local-ea-2", user_id: ids.reception, date: today, check_in: "10:00", check_out: "18:00", notes: "Reception shift", recorded_by: ids.admin, created_at: now },
+    { id: "local-ea-1", user_id: ids.sales, employee_profile_id: "local-profile-sales-1", date: today, check_in: "09:00", check_out: "17:00", notes: "Sales shift", recorded_by: ids.admin, created_at: now },
+    { id: "local-ea-2", user_id: ids.reception, employee_profile_id: "local-profile-reception-1", date: today, check_in: "10:00", check_out: "18:00", notes: "Reception shift", recorded_by: ids.admin, created_at: now },
   ],
   teacher_adjustments: [
     { id: "local-adj-1", teacher_id: ids.teacher, type: "bonus", amount: 500, reason: "Demo bonus", period_start: today, period_end: today, created_by: ids.admin, created_at: now },
@@ -117,6 +124,23 @@ const db: Record<string, Row[]> = {
       reminder_note: index === 1 ? "Waiting for the B1 evening start date." : index === 2 ? "Waiting for the requested teacher to be confirmed." : "",
     },
     created_at: now,
+  })),
+  manual_sheets: Array.from({ length: 50 }, (_, index) => ({
+    id: `local-manual-sheet-${index + 1}`,
+    owner_id: ids.admin,
+    name: `Campaign sheet ${String(index + 1).padStart(2, "0")}`,
+    assigned_sales_ids: [ids.sales],
+    columns: ["Name", "Phone", "Level", "Campaign", "Notes", "Status"],
+    rows: Array.from({ length: 3 }, (_, rowIndex) => ({
+      Name: `Imported lead ${index + 1}-${rowIndex + 1}`,
+      Phone: `010300${String(index * 3 + rowIndex + 1).padStart(6, "0")}`,
+      Level: index % 2 === 0 ? "A1" : "B1",
+      Campaign: index % 3 === 0 ? "Facebook" : index % 3 === 1 ? "WhatsApp" : "Referral",
+      Notes: rowIndex === 0 ? "Requested evening group" : "",
+      Status: rowIndex === 0 ? "new" : "waiting",
+    })),
+    created_at: now,
+    updated_at: now,
   })),
   lead_interactions: [
     { id: "local-interaction-1", lead_id: "local-lead-1", note: "Asked about A1 schedule.", created_by: ids.sales, created_at: now },

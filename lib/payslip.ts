@@ -23,11 +23,12 @@ function hoursBetween(checkIn: string | null | undefined, checkOut: string | nul
 }
 
 export async function calculatePayslips(supabase: SupabaseClient, start: string, end: string): Promise<PayslipRow[]> {
-  const [{ data: teachers }, { data: teacherAttendance }, { data: teacherAdjustments }, { data: users }, { data: employeeAdjustments }, { data: employeeAttendance }] = await Promise.all([
+  const [{ data: teachers }, { data: teacherAttendance }, { data: teacherAdjustments }, { data: users }, { data: profiles }, { data: employeeAdjustments }, { data: employeeAttendance }] = await Promise.all([
     supabase.from("teachers").select("*"),
     supabase.from("teacher_attendance").select("*").gte("date", start).lte("date", end),
     supabase.from("teacher_adjustments").select("*").gte("period_start", start).lte("period_end", end),
     supabase.from("users").select("id,full_name,role,payroll_type,monthly_salary,monthly_wage,hourly_rate,is_active").eq("is_active", true),
+    supabase.from("employee_profiles").select("id,account_user_id,full_name,role,payroll_type,monthly_salary,monthly_wage,hourly_rate,is_active").eq("is_active", true),
     supabase.from("employee_adjustments").select("*").gte("period_start", start).lte("period_end", end),
     supabase.from("employee_attendance").select("*").gte("date", start).lte("date", end),
   ]);
@@ -60,25 +61,24 @@ export async function calculatePayslips(supabase: SupabaseClient, start: string,
     };
   });
 
-  const workerRows: PayslipRow[] = (users ?? [])
-    .filter((user) => user.role !== "teacher")
-    .map((user) => {
-      const attendanceRows = (employeeAttendance ?? []).filter((row) => row.user_id === user.id);
+  const workerSource = (profiles?.length ? profiles : users ?? []).filter((worker) => worker.role !== "teacher");
+  const workerRows: PayslipRow[] = workerSource.map((worker) => {
+      const attendanceRows = (employeeAttendance ?? []).filter((row) => row.employee_profile_id === worker.id || (!row.employee_profile_id && row.user_id === worker.id));
       const hours = attendanceRows.reduce((sum, row) => sum + hoursBetween(row.check_in, row.check_out), 0);
-      const basePay = user.payroll_type === "hourly"
-        ? hours * Number(user.hourly_rate ?? 0)
-        : user.payroll_type === "monthly_wage"
-          ? Number(user.monthly_wage ?? 0)
-          : Number(user.monthly_salary ?? 0);
-      const adjustments = (employeeAdjustments ?? []).filter((row) => row.user_id === user.id);
+      const basePay = worker.payroll_type === "hourly"
+        ? hours * Number(worker.hourly_rate ?? 0)
+        : worker.payroll_type === "monthly_wage"
+          ? Number(worker.monthly_wage ?? 0)
+          : Number(worker.monthly_salary ?? 0);
+      const adjustments = (employeeAdjustments ?? []).filter((row) => row.employee_profile_id === worker.id || (!row.employee_profile_id && row.user_id === worker.id));
       const bonuses = adjustments.filter((row) => row.type === "bonus").reduce((sum, row) => sum + Number(row.amount), 0);
       const deductions = adjustments.filter((row) => row.type === "deduction").reduce((sum, row) => sum + Number(row.amount), 0);
       return {
         kind: "worker",
-        id: user.id,
-        name: user.full_name,
-        role: user.role,
-        payType: user.payroll_type ?? "monthly_salary",
+        id: worker.id,
+        name: worker.full_name,
+        role: worker.role,
+        payType: worker.payroll_type ?? "monthly_salary",
         hours,
         sessions: 0,
         basePay,

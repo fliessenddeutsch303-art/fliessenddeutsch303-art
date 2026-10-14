@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/select";
 import { useOfflineQueue } from "@/hooks/use-offline-queue";
 
 type Teacher = { id: string; name: string; pay_type: string };
-type Employee = { id: string; full_name: string; role: string; payroll_type?: string | null };
+type Employee = { id: string; full_name: string; role: string; payroll_type?: string | null; account_user_id?: string | null };
 type Student = { id: string; full_name: string };
 type Class = { id: string; name: string; students?: Student[] };
 
@@ -30,7 +30,7 @@ export function TeacherAttendanceForm({ teachers, employees = [], recordedBy }: 
     }
     for (const employee of employees) {
       const row = employeeRows[employee.id];
-      await enqueue("employee_attendance", { user_id: employee.id, date, check_in: row.present ? row.check_in || null : null, check_out: row.present ? row.check_out || null : null, notes: row.notes, recorded_by: recordedBy });
+      await enqueue("employee_attendance", { user_id: employee.account_user_id ?? null, employee_profile_id: employee.id, date, check_in: row.present ? row.check_in || null : null, check_out: row.present ? row.check_out || null : null, notes: row.notes, recorded_by: recordedBy });
     }
   }
   return (

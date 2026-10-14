@@ -63,7 +63,31 @@ export function ClassForm({ teachers }: { teachers: Option[] }) {
   );
 }
 
-export function TreasuryForm() {
+type TreasuryLabels = {
+  addTitle: string;
+  description: string;
+  date: string;
+  category: string;
+  amount: string;
+  type: string;
+  income: string;
+  expense: string;
+  save: string;
+};
+
+const defaultTreasuryLabels: TreasuryLabels = {
+  addTitle: "Add income or expense",
+  description: "Description",
+  date: "Date",
+  category: "Category",
+  amount: "Amount",
+  type: "Type",
+  income: "Income",
+  expense: "Expense",
+  save: "Save record",
+};
+
+export function TreasuryForm({ labels = defaultTreasuryLabels }: { labels?: TreasuryLabels }) {
   const [saved, setSaved] = useState("");
   const [error, setError] = useState(false);
   async function submit(form: FormData) {
@@ -73,11 +97,11 @@ export function TreasuryForm() {
     setSaved(error?.message ?? "Record saved successfully");
   }
   return (
-    <Card><CardHeader><CardTitle>Add Income or Expense</CardTitle></CardHeader><CardContent>
+    <Card><CardHeader><CardTitle>{labels.addTitle}</CardTitle></CardHeader><CardContent>
       <form action={submit} className="grid gap-3 md:grid-cols-5">
-        <Select name="type" defaultValue="income"><option value="income">Income</option><option value="expense">Expense</option></Select><Input name="amount" type="number" step="0.01" required placeholder="Amount" />
-        <Input name="category" required placeholder="Category" /><Input name="date" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
-        <Input name="description" placeholder="Description" /><Button className="md:col-span-5">Save Record</Button>{saved && <p role="status" className={`text-sm md:col-span-5 ${error ? "text-red-700" : "text-green-700"}`}>{saved}</p>}
+        <Select name="type" aria-label={labels.type} defaultValue="income"><option value="income">{labels.income}</option><option value="expense">{labels.expense}</option></Select><Input name="amount" type="number" step="0.01" required placeholder={labels.amount} aria-label={labels.amount} />
+        <Input name="category" required placeholder={labels.category} aria-label={labels.category} /><Input name="date" type="date" defaultValue={new Date().toISOString().slice(0, 10)} aria-label={labels.date} />
+        <Input name="description" placeholder={labels.description} aria-label={labels.description} /><Button className="md:col-span-5">{labels.save}</Button>{saved && <p role="status" className={`text-sm md:col-span-5 ${error ? "text-red-700" : "text-green-700"}`}>{saved}</p>}
       </form>
     </CardContent></Card>
   );

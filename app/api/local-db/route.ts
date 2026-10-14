@@ -33,6 +33,22 @@ export async function POST(request: Request) {
     }
     if (body.sortKey) query = query.order(body.sortKey, { ascending: body.ascending ?? true });
     const result = body.singleRow ? await query.single() : await query;
+    if (body.operation !== "select" && body.table !== "audit_logs" && !result.error) {
+      const changedRows = (Array.isArray(result.data) ? result.data : result.data ? [result.data] : []) as Array<Record<string, unknown>>;
+      const auditClient = createLocalSupabaseClient() as any;
+      for (const row of changedRows) {
+        await auditClient.from("audit_logs").insert({
+          actor_user_id: "local-admin",
+          actor_name: "Admin",
+          actor_email: "admin@local.test",
+          action: body.operation === "upsert" ? "created" : body.operation === "insert" ? "created" : body.operation,
+          entity_type: body.table,
+          entity_id: String(row.id ?? "unknown"),
+          details: { changed_fields: Object.keys(body.payload ?? {}), snapshot: row },
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Local database request failed" }, { status: 400 });

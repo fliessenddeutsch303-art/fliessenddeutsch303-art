@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
-import { Download, MessageCircle, Phone, Plus, Upload, UserPlus } from "lucide-react";
+import { Download, MessageCircle, Phone, Plus, Search, Upload, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,6 +76,8 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
   const [tagFilter, setTagFilter] = useState("");
   const [listView, setListView] = useState<"active" | "waiting" | string>("active");
   const [manualSheets, setManualSheets] = useState<Array<{ id: string; name: string }>>([]);
+  const [manualSheetQuery, setManualSheetQuery] = useState("");
+  const [manualSheetSearchOpen, setManualSheetSearchOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkAssignee, setBulkAssignee] = useState("");
@@ -233,9 +235,10 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
     setMessage(`Imported ${imported.length} leads`);
   }
 
-  const listTabs = <div className="flex flex-wrap gap-2 border-b pb-3"><Button variant={listView === "active" ? "default" : "outline"} onClick={() => { setListView("active"); setPage(1); setSelected(new Set()); }}>Active Leads ({leads.filter((lead) => lead.status !== "waiting").length})</Button><Button variant={listView === "waiting" ? "default" : "outline"} onClick={() => { setListView("waiting"); setPage(1); setSelected(new Set()); }}>Waiting List ({leads.filter((lead) => lead.status === "waiting").length})</Button>{manualSheets.map((sheet) => <Button key={sheet.id} variant={listView === `manual:${sheet.id}` ? "default" : "outline"} onClick={() => setListView(`manual:${sheet.id}`)}>{sheet.name}</Button>)}<Button variant={listView === "manual:new" ? "default" : "outline"} onClick={() => setListView("manual:new")}><Plus size={16} /> New list</Button></div>;
+  const visibleManualSheets = manualSheets.filter((sheet) => !manualSheetQuery.trim() || sheet.name.toLowerCase().includes(manualSheetQuery.toLowerCase()));
+  const listTabs = <div className="space-y-2 border-b pb-3"><div className="flex flex-wrap items-center gap-2"><Button variant={listView === "active" ? "default" : "outline"} onClick={() => { setListView("active"); setPage(1); setSelected(new Set()); }}>Active Leads ({leads.filter((lead) => lead.status !== "waiting").length})</Button><Button variant={listView === "waiting" ? "default" : "outline"} onClick={() => { setListView("waiting"); setPage(1); setSelected(new Set()); }}>Waiting List ({leads.filter((lead) => lead.status === "waiting").length})</Button>{manualSheets.length > 0 && <><Button type="button" size="icon" variant={manualSheetSearchOpen ? "default" : "outline"} onClick={() => setManualSheetSearchOpen((open) => !open)} title="Search saved sheets" aria-label="Search saved sheets"><Search size={16} /></Button>{manualSheetSearchOpen && <Input autoFocus className="w-48" value={manualSheetQuery} onChange={(event) => setManualSheetQuery(event.target.value)} placeholder="Search saved sheets..." />}<Select className="min-w-52" value={listView.startsWith("manual:") && listView !== "manual:new" ? listView : ""} onChange={(event) => { setManualSheetQuery(""); setListView(event.target.value); }}><option value="">Saved sheets ({manualSheets.length})</option>{visibleManualSheets.map((sheet) => <option key={sheet.id} value={`manual:${sheet.id}`}>{sheet.name}</option>)}</Select></>}<Button variant={listView === "manual:new" ? "default" : "outline"} onClick={() => setListView("manual:new")}><Plus size={16} /> New list</Button></div>{manualSheets.length > 0 && <div className="overflow-x-auto rounded-md border bg-[#F5F1EA] p-1"><div className="flex min-w-max gap-1" role="tablist" aria-label="Saved sheets">{visibleManualSheets.map((sheet) => <button key={sheet.id} type="button" role="tab" aria-selected={listView === `manual:${sheet.id}`} onClick={() => { setManualSheetQuery(""); setListView(`manual:${sheet.id}`); }} className={`rounded-md border px-3 py-2 text-sm font-medium ${listView === `manual:${sheet.id}` ? "border-[#D4AF37] bg-white text-[#1B4332]" : "border-transparent text-muted-foreground hover:bg-white/70"}`}>{sheet.name}</button>)}</div></div>}</div>;
 
-  if (listView.startsWith("manual:")) return <div className="space-y-4">{listTabs}<ManualLeadSheet embedded initialSheetId={listView === "manual:new" ? undefined : listView.slice("manual:".length)} onDeleted={() => setListView("active")} /></div>;
+  if (listView.startsWith("manual:")) return <div className="space-y-4">{listTabs}<ManualLeadSheet embedded initialSheetId={listView === "manual:new" ? undefined : listView.slice("manual:".length)} onDeleted={() => setListView("active")} canManage={canAssign} salesReps={reps} canConvert /></div>;
 
   return <div className="space-y-4">
     {listTabs}

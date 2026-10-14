@@ -22,6 +22,11 @@ export async function POST(request: Request) {
     const password = String(body.password ?? "");
     if (password.length < 8) throw new Error("Password must be at least 8 characters.");
     const admin = createSupabaseAdminClient();
+    const isSharedDepartment = body.role === "reception" || body.role === "sales";
+    if (isSharedDepartment) {
+      const { data: existingShared } = await admin.from("users").select("id,email").eq("role", body.role).eq("account_kind", "shared").maybeSingle();
+      if (existingShared) throw new Error(`A shared ${body.role} login already exists. Add another person from Employee profiles instead.`);
+    }
     const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     if (error || !data.user) throw error;
     const { error: profileError } = await admin.from("users").insert({
@@ -29,6 +34,7 @@ export async function POST(request: Request) {
       full_name: body.full_name,
       email,
       role: body.role,
+      account_kind: isSharedDepartment ? "shared" : "individual",
       is_active: body.is_active,
       permissions: body.permissions ?? {},
       payroll_type: body.payroll_type ?? "monthly_salary",

@@ -66,6 +66,16 @@ function LoginForm() {
       setLoading(false);
       return;
     }
+    const sessionKey = crypto.randomUUID();
+    const lockResponse = await fetch("/api/session-lock", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ session_key: sessionKey }) });
+    if (!lockResponse.ok) {
+      await supabase.auth.signOut();
+      const lockResult = await lockResponse.json().catch(() => null);
+      setError(lockResult?.error ?? t.loginFailed);
+      setLoading(false);
+      return;
+    }
+    document.cookie = `fd_session_key=${encodeURIComponent(sessionKey)}; path=/; max-age=86400; samesite=lax`;
     router.replace(roleHome[profile.role as keyof typeof roleHome]);
   }
 

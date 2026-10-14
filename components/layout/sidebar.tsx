@@ -32,6 +32,7 @@ const nav: Record<string, Array<NavItem & { labelKey: keyof typeof dictionaries.
   reception: [
     { href: "/reception/attendance/students", label: "Student Attendance", labelKey: "studentAttendance" },
     { href: "/reception/students", label: "Students", labelKey: "students" },
+    { href: "/reception/sales/lists", label: "Sales sheets", labelKey: "manualLists" },
     { href: "/reception/treasury", label: "Treasury Entry", labelKey: "treasury" },
   ],
   sales: [
