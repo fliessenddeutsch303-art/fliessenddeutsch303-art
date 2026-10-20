@@ -44,8 +44,8 @@ export async function middleware(request: NextRequest) {
 
   const role = profile.role as Role;
   const sessionKey = request.cookies.get("fd_session_key")?.value;
-  const { data: activeSession } = await supabase.from("account_active_sessions").select("session_key").eq("user_id", auth.user.id).maybeSingle();
-  if (!sessionKey || (activeSession && activeSession.session_key !== sessionKey)) return NextResponse.redirect(new URL("/login?session=conflict", request.url));
+  const { data: activeSession } = await supabase.from("account_active_sessions").select("id").eq("user_id", auth.user.id).eq("session_key", sessionKey ?? "").maybeSingle();
+  if (!sessionKey || !activeSession) return NextResponse.redirect(new URL("/login?session=conflict", request.url));
   if (path.startsWith("/admin/treasury") && role !== "admin") return new NextResponse("Unauthorized", { status: 401 });
   if (!path.startsWith(rolePrefixes[role]) && role !== "admin") {
     return NextResponse.redirect(new URL(rolePrefixes[role], request.url));

@@ -9,9 +9,10 @@ export async function POST(request: Request) {
   const sessionKey = String(body.session_key ?? "");
   if (!sessionKey) return NextResponse.json({ error: "Session key is required" }, { status: 400 });
   const admin = createSupabaseAdminClient();
-  const { data: current } = await admin.from("account_active_sessions").select("session_key").eq("user_id", auth.user.id).maybeSingle();
-  if (current && current.session_key !== sessionKey) return NextResponse.json({ error: "This account is already signed in on another device or browser." }, { status: 409 });
-  const { error } = await admin.from("account_active_sessions").upsert({ user_id: auth.user.id, session_key: sessionKey, last_seen_at: new Date().toISOString() });
+  const { error } = await admin.from("account_active_sessions").upsert(
+    { user_id: auth.user.id, session_key: sessionKey, last_seen_at: new Date().toISOString() },
+    { onConflict: "user_id,session_key" },
+  );
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });
 }
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const supabase = await createSupabaseServerClient();
   const { data: auth } = await supabase.auth.getUser();
-  if (auth.user) await createSupabaseAdminClient().from("account_active_sessions").delete().eq("user_id", auth.user.id);
+  const sessionKey = request.headers.get("cookie")?.match(/(?:^|; )fd_session_key=([^;]+)/)?.[1];
+  if (auth.user && sessionKey) await createSupabaseAdminClient().from("account_active_sessions").delete().eq("user_id", auth.user.id).eq("session_key", decodeURIComponent(sessionKey));
   return NextResponse.json({ ok: true });
 }
