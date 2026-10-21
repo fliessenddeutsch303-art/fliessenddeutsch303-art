@@ -4,6 +4,7 @@ import { direction } from "@/lib/i18n";
 import { getCurrentLanguage } from "@/lib/i18n-server";
 import { ArabicUiTranslator } from "@/components/layout/arabic-ui-translator";
 import { ServiceWorkerCleanup } from "@/components/layout/service-worker-cleanup";
+import { OfflineSyncBanner } from "@/components/layout/offline-sync-banner";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -18,7 +19,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const lang = await getCurrentLanguage();
   return (
     <html lang={lang} dir={direction(lang)}>
-      <body className={`${inter.variable} ${cairo.variable} min-h-screen font-sans antialiased ${lang === "ar" ? "font-cairo" : ""}`}><ServiceWorkerCleanup /><ArabicUiTranslator lang={lang} />{children}</body>
+      <body className={`${inter.variable} ${cairo.variable} min-h-screen font-sans antialiased ${lang === "ar" ? "font-cairo" : ""}`}><ServiceWorkerCleanup /><ArabicUiTranslator lang={lang} /><OfflineSyncBanner />{children}</body>
     </html>
   );
 }

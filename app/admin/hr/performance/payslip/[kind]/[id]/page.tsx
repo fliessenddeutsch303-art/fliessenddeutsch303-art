@@ -24,7 +24,7 @@ export default async function PayslipPage({ params, searchParams }: { params: Pr
       <Card className="mx-auto max-w-3xl border-black/20 print:border-0 print:shadow-none">
         <CardHeader className="border-b">
           <div className="flex items-center justify-between gap-4">
-            <Image src="/fliessend-logo-transparent.png" alt="Fließend Deutsch" width={150} height={85} className="object-contain" />
+            <Image src="/fliessend-logo-transparent.webp" alt="Fließend Deutsch" width={150} height={85} className="object-contain" />
             <div className="text-right">
               <CardTitle>Payslip</CardTitle>
               <p className="text-sm text-muted-foreground">{start} to {end}</p>

@@ -63,7 +63,7 @@ export default async function StudentQrAttendancePage({ params }: { params: Prom
     <main className="min-h-screen bg-[#FCFAF6] p-4">
       <Card className="mx-auto mt-10 max-w-lg overflow-hidden">
         <CardHeader className="items-center text-center">
-          <Image src="/fliessend-logo-transparent.png" alt="Fließend Deutsch" width={180} height={100} className="object-contain" />
+          <Image src="/fliessend-logo-transparent.webp" alt="Fließend Deutsch" width={180} height={100} className="object-contain" />
           <CardTitle>Attendance registered</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-center">

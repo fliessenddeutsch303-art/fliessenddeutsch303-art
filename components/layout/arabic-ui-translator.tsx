@@ -316,10 +316,24 @@ const replacements: Array<[string, string]> = [
   ["Confirm", "تأكيد"],
 ];
 
+const replacementPatterns = replacements.map(([english, arabic]) => [new RegExp(`\\b${english.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\\b`, "g"), arabic] as const);
+
 function translate(value: string) {
-  return replacements.reduce((result, [english, arabic]) => {
-    return result.replace(new RegExp(`\\b${english.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\\b`, "g"), arabic);
+  if (!/[A-Za-z]/.test(value)) return value;
+  return replacementPatterns.reduce((result, [pattern, arabic]) => {
+    return result.replace(pattern, arabic);
   }, value);
+}
+
+function translateElementAttributes(root: ParentNode) {
+  if (!(root instanceof Element || root instanceof Document || root instanceof DocumentFragment)) return;
+  const elements = root instanceof Element ? [root, ...root.querySelectorAll<HTMLElement>("input, textarea, select, button, [aria-label], [title]")] : [...root.querySelectorAll<HTMLElement>("input, textarea, select, button, [aria-label], [title]")];
+  elements.forEach((element) => {
+    for (const attribute of ["placeholder", "aria-label", "title"]) {
+      const value = element.getAttribute(attribute);
+      if (value) element.setAttribute(attribute, translate(value));
+    }
+  });
 }
 
 function translateTree(root: ParentNode) {
@@ -333,21 +347,27 @@ function translateTree(root: ParentNode) {
     const next = translate(textNode.nodeValue ?? "");
     if (next !== textNode.nodeValue) textNode.nodeValue = next;
   }
-  document.querySelectorAll<HTMLElement>("input, textarea, select, button, [aria-label], [title]").forEach((element) => {
-    for (const attribute of ["placeholder", "aria-label", "title"]) {
-      const value = element.getAttribute(attribute);
-      if (value) element.setAttribute(attribute, translate(value));
-    }
-  });
+  translateElementAttributes(root);
 }
 
 export function ArabicUiTranslator({ lang }: { lang: Lang }) {
   useEffect(() => {
     if (lang !== "ar") return;
     translateTree(document.body);
-    const observer = new MutationObserver(() => translateTree(document.body));
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    let timer: number | undefined;
+    const observer = new MutationObserver((records) => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        records.forEach((record) => {
+          record.addedNodes.forEach((node) => {
+            if (node instanceof Element || node instanceof DocumentFragment) translateTree(node);
+          });
+          if (record.target instanceof Element) translateElementAttributes(record.target);
+        });
+      }, 16);
+    });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["placeholder", "aria-label", "title"] });
+    return () => { observer.disconnect(); window.clearTimeout(timer); };
   }, [lang]);
   return null;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Download, Plus, Search, Trash2, Upload, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +57,7 @@ export function ManualLeadSheet({ initialSheetId, embedded = false, onDeleted, c
   const [transferClassId, setTransferClassId] = useState("");
   const [transferMessage, setTransferMessage] = useState("");
   const [transferring, setTransferring] = useState(false);
+  const hydratedRef = useRef(false);
   const active = useMemo(() => sheets.find((sheet) => sheet.id === activeId) ?? sheets[0], [sheets, activeId]);
 
   useEffect(() => {
@@ -70,6 +71,7 @@ export function ManualLeadSheet({ initialSheetId, embedded = false, onDeleted, c
       setActiveId(initialSheetId ?? stored[0]?.id ?? "");
       setCloud(true);
       setReady(true);
+      hydratedRef.current = true;
     }).catch(() => {
       try {
         const stored = normalizeSheets(JSON.parse(localStorage.getItem(storageKey) ?? "[]") as ManualSheet[]);
@@ -98,11 +100,13 @@ export function ManualLeadSheet({ initialSheetId, embedded = false, onDeleted, c
       localStorage.setItem(storageKey, JSON.stringify(sheets));
       window.dispatchEvent(new Event("fd-manual-sheets-updated"));
     }
-    if (ready && cloud && canEdit) {
-      void Promise.all(sheets.map((sheet) => fetch("/api/manual-sheets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(sheet) })))
+    if (!ready || !cloud || !canEdit || !hydratedRef.current || !active) return;
+    const timer = window.setTimeout(() => {
+      void fetch("/api/manual-sheets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(active) })
         .then(() => window.dispatchEvent(new Event("fd-manual-sheets-updated")));
-    }
-  }, [ready, cloud, sheets, canEdit]);
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [ready, cloud, canEdit, active]);
 
   function createSheet() {
     const sheet: ManualSheet = { id: newId(), name: name.trim() || `Manual list ${sheets.length + 1}`, columns: [...defaultColumns], rows: [] };
