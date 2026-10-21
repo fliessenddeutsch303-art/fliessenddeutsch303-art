@@ -13,6 +13,7 @@ export async function GET() {
     ? (result.data ?? []).filter((sheet: { owner_id?: string; assigned_sales_ids?: string[] }) => sheet.owner_id === user.id || (sheet.assigned_sales_ids ?? []).includes(user.id))
     : result.data;
   const error = result.error;
+  if (error && error.message.includes("manual_sheets")) return NextResponse.json({ sheets: [], unavailable: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ sheets: data ?? [] });
 }
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
     assigned_sales_ids: assignedSalesIds,
     updated_at: new Date().toISOString(),
   }, { onConflict: "id" });
+  if (error && error.message.includes("manual_sheets")) return NextResponse.json({ error: "Cloud manual sheets are not configured yet." }, { status: 503 });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
@@ -50,6 +52,7 @@ export async function DELETE(request: Request) {
 
   let query = supabase.from("manual_sheets").delete().eq("id", body.id);
   const { error } = await query;
+  if (error && error.message.includes("manual_sheets")) return NextResponse.json({ error: "Cloud manual sheets are not configured yet." }, { status: 503 });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

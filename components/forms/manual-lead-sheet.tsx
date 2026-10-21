@@ -103,7 +103,8 @@ export function ManualLeadSheet({ initialSheetId, embedded = false, onDeleted, c
     if (!ready || !cloud || !canEdit || !hydratedRef.current || !active) return;
     const timer = window.setTimeout(() => {
       void fetch("/api/manual-sheets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(active) })
-        .then(() => window.dispatchEvent(new Event("fd-manual-sheets-updated")));
+        .then(() => window.dispatchEvent(new Event("fd-manual-sheets-updated")))
+        .catch(() => { /* Navigation or offline cancellation is handled by the next hydration. */ });
     }, 450);
     return () => window.clearTimeout(timer);
   }, [ready, cloud, canEdit, active]);
