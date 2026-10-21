@@ -13,15 +13,15 @@ export default async function ReportsPage() {
   const today = isoDate();
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
   const [treasury, attendance, teacherAttendance, interactions, leads, files, users, classes, accounts] = await Promise.all([
-    supabase.from("treasury_records").select("type,amount,date,category"),
-    supabase.from("student_attendance").select("id,status,date,class_id"),
-    supabase.from("teacher_attendance").select("id,check_in,date"),
-    supabase.from("lead_interactions").select("id,created_by,created_at,lead_id"),
-    supabase.from("leads").select("id,status,assigned_to,file_id,created_at"),
+    supabase.from("treasury_records").select("type,amount,date,category").gte("date", monthStart),
+    supabase.from("student_attendance").select("id,status,date,class_id").gte("date", monthStart),
+    supabase.from("teacher_attendance").select("id,check_in,date").gte("date", monthStart),
+    supabase.from("lead_interactions").select("id,created_by,created_at,lead_id").gte("created_at", `${monthStart}T00:00:00`),
+    supabase.from("leads").select("id,status,assigned_to,file_id,created_at").gte("created_at", `${monthStart}T00:00:00`),
     supabase.from("lead_files").select("id,name,total_leads"),
     supabase.from("users").select("id,full_name,role"),
     supabase.from("classes").select("id,name"),
-    supabase.from("student_account_records").select("id,amount,status,class_id,created_at"),
+    supabase.from("student_account_records").select("id,amount,status,class_id,created_at").gte("created_at", `${monthStart}T00:00:00`),
   ]);
 
   const treasuryRows = treasury.data ?? [];
