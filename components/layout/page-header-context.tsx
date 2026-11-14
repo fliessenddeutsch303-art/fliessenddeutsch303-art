@@ -9,10 +9,10 @@ const paths = [
   ["/admin/dashboard", "dashboard"], ["/admin/students", "students"], ["/admin/classes", "classes"],
   ["/admin/student-attendance", "studentAttendance"], ["/admin/exams-management", "examManagement"], ["/admin/exams", "exams"],
   ["/admin/teacher-follow-up", "teacherFollowUp"], ["/admin/textbooks", "textbookInventory"], ["/admin/hr/attendance", "hr"],
-  ["/admin/hr/performance", "performance"], ["/admin/account-center", "accountCenter"], ["/admin/logs", "logs"],
+  ["/admin/hr/performance", "performance"], ["/admin/hr/payroll", "payroll"], ["/admin/hr/adjustments", "adjustments"], ["/admin/users", "users"], ["/admin/links", "links"], ["/admin/sales/files", "leadFiles"], ["/admin/sales/lists", "manualLists"], ["/admin/account-center", "accountCenter"], ["/admin/logs", "logs"],
   ["/admin/sales", "sales"], ["/admin/treasury", "treasury"], ["/admin/reports", "reports"], ["/admin/branches", "branches"],
-  ["/reception/attendance/students", "studentAttendance"], ["/reception/students", "students"], ["/reception/treasury", "treasury"],
-  ["/sales/leads", "myLeads"], ["/sales/lists", "manualLists"], ["/sales/files", "files"], ["/teacher/follow-up", "teacherFollowUp"],
+  ["/reception/attendance/students", "studentAttendance"], ["/reception/attendance", "hr"], ["/reception/sales/lists", "manualLists"], ["/reception/students", "students"], ["/reception/treasury", "treasury"],
+  ["/sales/leads", "myLeads"], ["/sales/lists", "manualLists"], ["/sales/files", "files"], ["/teacher/follow-up", "teacherFollowUp"], ["/teacher/attendance", "myAttendance"], ["/teacher/classes", "myClasses"],
 ] as const;
 
 export function PageHeaderContext({ profile, lang }: { profile: UserProfile; lang: Lang }) {
@@ -22,7 +22,8 @@ export function PageHeaderContext({ profile, lang }: { profile: UserProfile; lan
   // fills the clock after hydration so the timestamp cannot cause a mismatch.
   const [now, setNow] = useState<Date | null>(null);
   const title = useMemo(() => {
-    const match = paths.find(([path]) => pathname === path || pathname.startsWith(`${path}/`));
+    // Longest match wins, so /admin/sales/files is not titled "Sales".
+    const match = [...paths].sort((a, b) => b[0].length - a[0].length).find(([path]) => pathname === path || pathname.startsWith(`${path}/`));
     return match ? t.nav[match[1] as keyof typeof t.nav] : t.academySystem;
   }, [pathname, t]);
 

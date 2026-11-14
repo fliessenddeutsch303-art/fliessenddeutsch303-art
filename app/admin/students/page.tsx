@@ -1,22 +1,16 @@
 import { StudentManager } from "@/components/forms/student-manager";
 import { getCurrentUser } from "@/lib/auth";
-import { isPromotionCandidate } from "@/lib/level-progression";
+import { fetchAll } from "@/lib/supabase/fetch-all";
+import { isPromotionCandidate, promotionExamByStudent } from "@/lib/level-progression";
 
 export default async function AdminStudentsPage() {
   const { supabase } = await getCurrentUser("admin");
   const [students, classes, exams] = await Promise.all([
-    supabase.from("students").select("id,full_name,phone,email,level,tags,class_id,learning_mode,status,total_price,amount_paid,payment_due_date,payment_comment,freeze_start_date,freeze_months,freeze_end_date,level_completed_stopped,enrolled_at,created_at,classes(name,teachers(name))").order("created_at", { ascending: false }),
+    fetchAll((from, to) => supabase.from("students").select("id,full_name,phone,email,level,tags,class_id,learning_mode,status,total_price,amount_paid,payment_due_date,payment_comment,freeze_start_date,freeze_months,freeze_end_date,level_completed_stopped,enrolled_at,created_at,portal_token,classes(name,teachers(name))").order("created_at", { ascending: false }).order("id").range(from, to)),
     supabase.from("classes").select("id,name,level").order("name"),
-    supabase.from("exam_records").select("student_id,exam_type,level_result,score_percent,scheduled_at").order("scheduled_at", { ascending: false }),
+    fetchAll((from, to) => supabase.from("exam_records").select("id,student_id,exam_type,level_result,score_percent,scheduled_at,created_at").order("scheduled_at", { ascending: false }).order("id").range(from, to)),
   ]);
-  const latestExamByStudent = new Map<string, { level_result?: string | null; score_percent?: number | null }>();
-  for (const exam of exams.data ?? []) {
-    // A newer quiz or main-test row may not contain a level result. Keep the
-    // latest completed placement result so promotion candidates remain visible.
-    if (!latestExamByStudent.has(exam.student_id) && exam.exam_type !== "quiz" && exam.level_result) {
-      latestExamByStudent.set(exam.student_id, exam);
-    }
-  }
+  const latestExamByStudent = promotionExamByStudent(exams.data ?? []);
   const rows = (students.data ?? []).map((student) => {
     const latestExam = latestExamByStudent.get(student.id);
     return {

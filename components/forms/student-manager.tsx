@@ -11,6 +11,8 @@ import { StudentExcelTools } from "@/components/forms/student-excel-tools";
 import { StudentsTable } from "@/components/tables/students-table";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { recordAudit } from "@/lib/audit";
+import { academyDate } from "@/lib/dates";
+import { addMonthsClamped } from "@/lib/level-progression";
 
 type ClassOption = { id: string; name: string; level?: string | null };
 type StudentRow = {
@@ -35,7 +37,7 @@ type StudentRow = {
   next_level?: string | null;
   enrolled_at?: string | null;
   created_at?: string | null;
-  classes?: { name?: string; teachers?: { name?: string } | null } | null;
+  classes?: { id?: string; name?: string; level?: string | null; teachers?: { name?: string } | null } | null;
 };
 
 const blank = {
@@ -57,16 +59,33 @@ const blank = {
   level_completed_stopped: "false",
 };
 
-export function StudentManager({ initialStudents, classes }: { initialStudents: StudentRow[]; classes: ClassOption[] }) {
+export function StudentManager({ initialStudents, classes, canViewProfile = true }: { initialStudents: StudentRow[]; classes: ClassOption[]; canViewProfile?: boolean }) {
   const [students, setStudents] = useState(initialStudents);
   const [editing, setEditing] = useState<StudentRow | null>(null);
   const [form, setForm] = useState(blank);
   const [saved, setSaved] = useState("");
+  const [invalidFields, setInvalidFields] = useState<string[]>([]);
+
+  // Loads the class's capacity and teacher, and asks before putting a student into a full class. Returns null when the user cancels.
+  async function loadClass(classId: string, studentId?: string) {
+    const option = classes.find((klass) => klass.id === classId);
+    const { data } = await createSupabaseBrowserClient().from("classes").select("name,level,capacity,teachers(name)").eq("id", classId).maybeSingle();
+    const info = data as { name?: string; level?: string | null; capacity?: number | null; teachers?: { name?: string } | { name?: string }[] | null } | null;
+    const today = academyDate();
+    const count = students.filter((row) => row.id !== studentId && row.class_id === classId && row.status === "active" && !(row.freeze_start_date && row.freeze_end_date && row.freeze_start_date <= today && row.freeze_end_date >= today)).length;
+    const capacity = Number(info?.capacity ?? 0);
+    const name = info?.name ?? option?.name ?? "this class";
+    if (capacity > 0 && count >= capacity && !window.confirm(`${name} is full (${count} / ${capacity} active students). Add this student anyway?`)) return null;
+    const teachers = Array.isArray(info?.teachers) ? info?.teachers[0] : info?.teachers;
+    return { id: classId, name, level: info?.level ?? option?.level ?? null, teachers: teachers ?? null };
+  }
 
   async function promoteStudent(row: Record<string, unknown>, classId: string) {
     const student = row as unknown as StudentRow;
     const targetClass = classes.find((klass) => klass.id === classId);
     if (!targetClass) return { ok: false, message: "Choose a class first." };
+    const loaded = await loadClass(targetClass.id, student.id);
+    if (!loaded) return { ok: false, message: "Cancelled." };
     const payload = { class_id: targetClass.id, level: student.next_level || student.level, level_completed_stopped: false };
     const { error } = await createSupabaseBrowserClient().from("students").update(payload).eq("id", student.id);
     if (error) return { ok: false, message: error.message };
@@ -75,7 +94,7 @@ export function StudentManager({ initialStudents, classes }: { initialStudents: 
       ...payload,
       promotion_candidate: false,
       next_level: null,
-      classes: { name: targetClass.name },
+      classes: loaded,
     } : row));
     void recordAudit("updated", "student", student.id, { action: "promoted", from_class: student.classes?.name ?? null, to_class: targetClass.name, from_level: student.level ?? null, to_level: payload.level });
     return { ok: true, message: `${student.full_name} moved to ${targetClass.name}.` };
@@ -89,6 +108,7 @@ export function StudentManager({ initialStudents, classes }: { initialStudents: 
     setEditing(null);
     setForm(blank);
     setSaved("");
+    setInvalidFields([]);
   }
 
   function startEdit(student: StudentRow) {
@@ -112,16 +132,34 @@ export function StudentManager({ initialStudents, classes }: { initialStudents: 
       level_completed_stopped: String(Boolean(student.level_completed_stopped)),
     });
     setSaved("");
+    setInvalidFields([]);
   }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    let freezeEnd = form.freeze_end_date || null;
-    if (form.freeze_start_date && Number(form.freeze_months) > 0) {
-      const end = new Date(`${form.freeze_start_date}T12:00:00`);
-      end.setMonth(end.getMonth() + Math.min(3, Number(form.freeze_months)));
-      freezeEnd = end.toISOString().slice(0, 10);
+    const missing: string[] = [];
+    if (!form.full_name.trim()) missing.push("Full name");
+    if (!form.phone.trim()) missing.push("Phone");
+    if (missing.length) {
+      setInvalidFields(missing);
+      setSaved(`Please complete: ${missing.join(", ")}.`);
+      return;
     }
+    setInvalidFields([]);
+    const freezeMonths = Math.min(3, Math.max(0, Number(form.freeze_months || 0)));
+    if (freezeMonths > 0 && !form.freeze_start_date) {
+      setInvalidFields(["Freeze started"]);
+      setSaved("Enter the freeze start date, or set the duration to No freeze.");
+      return;
+    }
+    const freezeStart = freezeMonths > 0 ? form.freeze_start_date : null;
+    const freezeEnd = freezeStart ? addMonthsClamped(freezeStart, freezeMonths) : null;
+    const digits = (value: string) => value.replace(/\D/g, "");
+    const duplicate = digits(form.phone) ? students.find((row) => row.id !== editing?.id && digits(row.phone ?? "") === digits(form.phone)) : undefined;
+    if (duplicate && !window.confirm(`${duplicate.full_name} already has this phone number. Save anyway?`)) return;
+    const classChanged = Boolean(form.class_id) && form.class_id !== (editing?.class_id ?? "");
+    const loadedClass = classChanged ? await loadClass(form.class_id, editing?.id) : null;
+    if (classChanged && !loadedClass) return;
     const payload = {
       full_name: form.full_name,
       phone: form.phone,
@@ -135,8 +173,8 @@ export function StudentManager({ initialStudents, classes }: { initialStudents: 
       amount_paid: Number(form.amount_paid || 0),
       payment_due_date: form.payment_due_date || null,
       payment_comment: form.payment_comment,
-      freeze_start_date: form.freeze_start_date || null,
-      freeze_months: Math.min(3, Math.max(0, Number(form.freeze_months || 0))),
+      freeze_start_date: freezeStart,
+      freeze_months: freezeMonths,
       freeze_end_date: freezeEnd,
       level_completed_stopped: form.level_completed_stopped === "true",
     };
@@ -147,7 +185,7 @@ export function StudentManager({ initialStudents, classes }: { initialStudents: 
         setSaved(error.message);
         return;
       }
-      setStudents((rows) => rows.map((row) => row.id === editing.id ? { ...row, ...payload, classes: classes.find((klass) => klass.id === payload.class_id) ?? null } : row));
+      setStudents((rows) => rows.map((row) => row.id === editing.id ? { ...row, ...payload, classes: !payload.class_id ? null : loadedClass ?? (payload.class_id === row.class_id ? row.classes : classes.find((klass) => klass.id === payload.class_id)) ?? null } : row));
       void recordAudit("updated", "student", editing.id, { fields: Object.keys(payload), full_name: payload.full_name });
       setSaved("Student updated");
       return;
@@ -158,11 +196,14 @@ export function StudentManager({ initialStudents, classes }: { initialStudents: 
       setSaved(error.message);
       return;
     }
-    setStudents((rows) => [{ id: data.id, ...payload, enrolled_at: new Date().toISOString(), classes: classes.find((klass) => klass.id === payload.class_id) ?? null }, ...rows]);
+    setStudents((rows) => [{ id: data.id, ...payload, enrolled_at: new Date().toISOString(), classes: loadedClass ?? classes.find((klass) => klass.id === payload.class_id) ?? null }, ...rows]);
     void recordAudit("created", "student", data.id, { fields: Object.keys(payload), full_name: payload.full_name });
     setSaved("Student saved");
     reset();
   }
+
+  const requiredClass = (field: string) => invalidFields.includes(field) ? "border-red-500 ring-1 ring-red-500" : "";
+  const requiredLabel = (text: string) => <>{text}<span className="ml-1 text-red-600" aria-hidden="true">*</span></>;
 
   return (
     <div className="space-y-6">
@@ -173,9 +214,9 @@ export function StudentManager({ initialStudents, classes }: { initialStudents: 
           {editing && <Button type="button" variant="outline" size="sm" onClick={reset}><X size={16} /> Cancel</Button>}
         </CardHeader>
         <CardContent>
-          <form onSubmit={submit} className="grid gap-3 md:grid-cols-3">
-            <label className="grid gap-1 text-sm"><span className="font-medium">Full name</span><Input required value={form.full_name} onChange={(event) => setField("full_name", event.target.value)} /></label>
-            <label className="grid gap-1 text-sm"><span className="font-medium">Phone</span><Input required value={form.phone} onChange={(event) => setField("phone", event.target.value)} /></label>
+          <form noValidate onSubmit={submit} className="grid gap-3 md:grid-cols-3">
+            <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Full name")}</span><Input aria-required="true" className={requiredClass("Full name")} value={form.full_name} onChange={(event) => { setField("full_name", event.target.value); setInvalidFields((fields) => fields.filter((field) => field !== "Full name")); }} /></label>
+            <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Phone")}</span><Input aria-required="true" className={requiredClass("Phone")} value={form.phone} onChange={(event) => { setField("phone", event.target.value); setInvalidFields((fields) => fields.filter((field) => field !== "Phone")); }} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Email</span><Input type="email" value={form.email} onChange={(event) => setField("email", event.target.value)} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Level</span><Input value={form.level} onChange={(event) => setField("level", event.target.value)} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Tags</span><Input value={form.tags} onChange={(event) => setField("tags", event.target.value)} /></label>
@@ -195,16 +236,16 @@ export function StudentManager({ initialStudents, classes }: { initialStudents: 
             <label className="grid gap-1 text-sm"><span className="font-medium">Total price</span><Input type="number" min="0" step="0.01" value={form.total_price} onChange={(event) => setField("total_price", event.target.value)} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Amount paid</span><Input type="number" min="0" step="0.01" value={form.amount_paid} onChange={(event) => setField("amount_paid", event.target.value)} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Payment date arranged</span><Input type="date" value={form.payment_due_date} onChange={(event) => setField("payment_due_date", event.target.value)} /></label>
-            <label className="grid gap-1 text-sm"><span className="font-medium">Freeze started</span><Input type="date" value={form.freeze_start_date} onChange={(event) => setField("freeze_start_date", event.target.value)} /></label>
+            <label className="grid gap-1 text-sm"><span className="font-medium">Freeze started</span><Input type="date" className={requiredClass("Freeze started")} value={form.freeze_start_date} onChange={(event) => setField("freeze_start_date", event.target.value)} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Freeze duration</span><Select value={form.freeze_months} onChange={(event) => setField("freeze_months", event.target.value)}><option value="0">No freeze</option><option value="1">1 month</option><option value="2">2 months</option><option value="3">3 months maximum</option></Select></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Student progress</span><Select value={form.level_completed_stopped} onChange={(event) => setField("level_completed_stopped", event.target.value)}><option value="false">Continuing</option><option value="true">Finished level - stopped</option></Select></label>
             <label className="grid gap-1 text-sm md:col-span-3"><span className="font-medium">Payment comment</span><Textarea value={form.payment_comment} onChange={(event) => setField("payment_comment", event.target.value)} /></label>
             <Button className="md:col-span-3">{editing ? <Edit2 size={16} /> : <Plus size={16} />}{editing ? "Update Student" : "Save Student"}</Button>
-            {saved && <p className="text-sm text-muted-foreground md:col-span-3">{saved}</p>}
+            {saved && <p role="alert" className={`text-sm md:col-span-3 ${invalidFields.length ? "text-red-600" : "text-muted-foreground"}`}>{saved}</p>}
           </form>
         </CardContent>
       </Card>
-      <StudentsTable rows={students as unknown as Record<string, unknown>[]} classes={classes} onEdit={(row) => startEdit(row as unknown as StudentRow)} onPromote={promoteStudent} />
+      <StudentsTable rows={students as unknown as Record<string, unknown>[]} classes={classes} onEdit={(row) => startEdit(row as unknown as StudentRow)} onPromote={promoteStudent} canViewProfile={canViewProfile} />
     </div>
   );
 }

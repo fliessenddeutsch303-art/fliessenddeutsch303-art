@@ -9,9 +9,13 @@ import { Select } from "@/components/ui/select";
 import { ClassExcelTools } from "@/components/forms/class-excel-tools";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { recordAudit } from "@/lib/audit";
+import { escapeHtml } from "@/lib/utils";
+import type { Lang } from "@/lib/i18n";
+import { academyDate } from "@/lib/dates";
+import { addMonthsClamped } from "@/lib/level-progression";
 
 type Teacher = { id: string; name: string };
-type ClassStudent = { id: string; full_name: string; phone?: string | null; email?: string | null; level?: string | null; learning_mode?: string | null; status?: string | null; promotion_candidate?: boolean; next_level?: string | null };
+type ClassStudent = { id: string; full_name: string; phone?: string | null; email?: string | null; level?: string | null; learning_mode?: string | null; status?: string | null; class_id?: string | null; freeze_start_date?: string | null; freeze_end_date?: string | null; promotion_candidate?: boolean; next_level?: string | null };
 type ClassRow = {
   id: string;
   name: string;
@@ -32,6 +36,9 @@ type ClassRow = {
   students?: ClassStudent[];
 };
 
+const isFrozen = (student: ClassStudent, today: string) => Boolean(student.freeze_start_date && student.freeze_end_date && student.freeze_start_date <= today && student.freeze_end_date >= today);
+const activeCount = (row: ClassRow, today: string) => (row.students ?? []).filter((student) => student.status === "active" && !isFrozen(student, today)).length;
+
 const weekDays = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 function groupStatus(row: ClassRow) {
@@ -43,7 +50,7 @@ function groupStatus(row: ClassRow) {
   return { label: "Not started", className: "border-blue-300 bg-blue-50" };
 }
 
-export function ClassManager({ initialClasses, teachers }: { initialClasses: ClassRow[]; teachers: Teacher[] }) {
+export function ClassManager({ initialClasses, teachers, lang = "en" }: { initialClasses: ClassRow[]; teachers: Teacher[]; lang?: Lang }) {
   const [classes, setClasses] = useState(initialClasses);
   const [editing, setEditing] = useState<ClassRow | null>(null);
   const [name, setName] = useState("");
@@ -57,6 +64,7 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
   const [sessionsDone, setSessionsDone] = useState("0");
   const [classStatus, setClassStatus] = useState("not_started");
   const [saved, setSaved] = useState("");
+  const [invalidFields, setInvalidFields] = useState<string[]>([]);
   const [openClassIds, setOpenClassIds] = useState<string[]>([]);
   const [promotingStudent, setPromotingStudent] = useState<(ClassStudent & { fromClassId: string; fromClassName: string }) | null>(null);
   const [promotionDestination, setPromotionDestination] = useState<"class" | "waiting" | "freeze">("class");
@@ -64,8 +72,40 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
   const [freezeMonths, setFreezeMonths] = useState("1");
   const [promotionMessage, setPromotionMessage] = useState("");
 
+  const today = academyDate();
   const title = editing ? "Edit Class" : "Create Class";
   const buttonLabel = editing ? "Update Class" : "Save Class";
+  const promotionCopy = lang === "ar" ? {
+    title: "ترقية الطالب",
+    cancel: "إلغاء",
+    destination: "الوجهة",
+    nextClass: "فصل المستوى التالي",
+    waiting: "قائمة الانتظار",
+    freeze: "تجميد الطالب",
+    chooseClass: "اختر فصلًا موجودًا للمستوى التالي",
+    choose: "اختر الفصل...",
+    duration: "مدة التجميد",
+    month: "شهر",
+    months: "شهران",
+    threeMonths: "3 أشهر",
+    createFirst: "أنشئ فصلًا للمستوى التالي أولًا، أو اختر قائمة الانتظار / تجميد الطالب.",
+    confirm: "تأكيد",
+  } : {
+    title: "Promote student",
+    cancel: "Cancel",
+    destination: "Destination",
+    nextClass: "Next-level class",
+    waiting: "Waiting list",
+    freeze: "Freeze student",
+    chooseClass: "Choose an existing next-level class",
+    choose: "Choose class...",
+    duration: "Freeze duration",
+    month: "1 month",
+    months: "2 months",
+    threeMonths: "3 months",
+    createFirst: "Create a class for the next level first, or choose Waiting list / Freeze student.",
+    confirm: "Confirm",
+  };
 
   function reset() {
     setEditing(null);
@@ -80,6 +120,7 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
     setSessionsDone("0");
     setClassStatus("not_started");
     setSaved("");
+    setInvalidFields([]);
   }
 
   function startEdit(row: ClassRow) {
@@ -105,10 +146,25 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
     setSessionsDone(String(row.sessions_done ?? 0));
     setClassStatus(row.class_status ?? (Number(row.sessions_done ?? 0) > 0 ? "started" : "not_started"));
     setSaved("");
+    setInvalidFields([]);
   }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    const missing: string[] = [];
+    if (!name.trim()) missing.push("Class name");
+    if (!teacherId) missing.push("Teacher");
+    if (!level.trim()) missing.push("Level");
+    if (!Object.keys(scheduleSlots).length || !Object.values(scheduleSlots).every(Boolean)) missing.push("Weekly schedule");
+    if (!capacity || Number(capacity) < 1) missing.push("Capacity");
+    if (!totalSessions || Number(totalSessions) < 0) missing.push("Total sessions");
+    if (!sessionsDone || Number(sessionsDone) < 0 || Number(sessionsDone) > Number(totalSessions)) missing.push("Sessions completed");
+    if (missing.length) {
+      setInvalidFields(missing);
+      setSaved(`Please complete: ${missing.join(", ")}.`);
+      return;
+    }
+    setInvalidFields([]);
     const schedule = weekDays.filter((day) => scheduleSlots[day]).map((day) => `${day} ${scheduleSlots[day]}`).join(" | ");
     const payload = { name, teacher_id: teacherId || null, level, current_chapter: currentChapter, learning_mode: learningMode, schedule, capacity: Number(capacity), total_sessions: Number(totalSessions), sessions_done: Number(sessionsDone), class_status: classStatus };
     const supabase = createSupabaseBrowserClient();
@@ -128,6 +184,11 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
     const { data, error } = await supabase.from("classes").insert(payload).select("id,name,teacher_id,level,current_chapter,learning_mode,schedule,capacity,total_sessions,sessions_done,last_session_completed_date,class_status").single();
     if (error) {
       setSaved(error.message);
+      return;
+    }
+    if (!data?.id) {
+      reset();
+      setSaved("Class saved. It will appear in the list after sync.");
       return;
     }
     const created = {
@@ -203,64 +264,73 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
     setScheduleSlots((slots) => ({ ...slots, [day]: time }));
   }
 
-  const canSubmit = Boolean(
-    name.trim()
-    && level.trim()
-    && teacherId
-    && Object.keys(scheduleSlots).length > 0
-    && Object.values(scheduleSlots).every(Boolean)
-    && Number(capacity) >= 1
-    && Number(totalSessions) >= 0
-    && Number(sessionsDone) >= 0
-    && Number(sessionsDone) <= Number(totalSessions),
-  );
+  const requiredClass = (field: string) => invalidFields.includes(field) ? "border-red-500 ring-1 ring-red-500" : "";
+  const requiredLabel = (text: string) => <>{text}<span className="ml-1 text-red-600" aria-hidden="true">*</span></>;
 
   function toggleClass(id: string) {
     setOpenClassIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]);
   }
 
   const promotionClasses = promotingStudent?.next_level
-    ? classes.filter((row) => row.id !== promotingStudent.fromClassId && row.level === promotingStudent.next_level)
+    ? classes.filter((row) => row.id !== promotingStudent.fromClassId && String(row.level ?? "").trim().toLowerCase() === promotingStudent.next_level!.trim().toLowerCase())
     : [];
 
   async function promoteStudent() {
     if (!promotingStudent) return;
     const targetClass = classes.find((row) => row.id === promotionClassId);
     const supabase = createSupabaseBrowserClient();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = academyDate();
     let error: { message: string } | null = null;
 
+    let freezePatch: { freeze_start_date: string; freeze_end_date: string } | null = null;
     if (promotionDestination === "class") {
       if (!targetClass) return;
-      const payload = { class_id: targetClass.id, level: promotingStudent.next_level, level_completed_stopped: false };
+      const count = activeCount(targetClass, today);
+      if (Number(targetClass.capacity) > 0 && count >= Number(targetClass.capacity) && !window.confirm(`${targetClass.name} is full (${count} / ${targetClass.capacity} active students). Move ${promotingStudent.full_name} into it anyway?`)) return;
+      const payload = { class_id: targetClass.id, level: String(promotingStudent.next_level ?? "").trim().toUpperCase(), level_completed_stopped: false };
       ({ error } = await supabase.from("students").update(payload).eq("id", promotingStudent.id));
     } else if (promotionDestination === "waiting") {
-      const { error: leadError } = await supabase.from("leads").insert({
-        full_name: promotingStudent.full_name,
-        phone: promotingStudent.phone ?? "",
-        source: "Student transfer",
-        status: "waiting",
-        crm_data: {
-          level: promotingStudent.next_level ?? promotingStudent.level ?? "",
-          previous_class: promotingStudent.fromClassName,
-          reminder_note: "Student is waiting for a suitable next class.",
-        },
-      });
-      if (leadError) error = leadError;
-      else ({ error } = await supabase.from("students").update({ class_id: null }).eq("id", promotingStudent.id));
+      // Update the student first so a retry cannot create a second lead; revert it if the lead cannot be stored.
+      ({ error } = await supabase.from("students").update({ class_id: null }).eq("id", promotingStudent.id));
+      if (!error) {
+        const phone = (promotingStudent.phone ?? "").trim();
+        let exists = false;
+        if (phone) {
+          const { data: existing } = await supabase.from("leads").select("id").eq("phone", phone).eq("status", "waiting").limit(1);
+          exists = Boolean(existing?.length);
+        }
+        if (!exists) {
+          const { error: leadError } = await supabase.from("leads").insert({
+            full_name: promotingStudent.full_name,
+            phone: promotingStudent.phone ?? "",
+            source: "Student transfer",
+            status: "waiting",
+            crm_data: {
+              level: promotingStudent.next_level ?? promotingStudent.level ?? "",
+              previous_class: promotingStudent.fromClassName,
+              reminder_note: "Student is waiting for a suitable next class.",
+            },
+          });
+          if (leadError) {
+            await supabase.from("students").update({ class_id: promotingStudent.fromClassId }).eq("id", promotingStudent.id);
+            error = leadError;
+          }
+        }
+      }
     } else {
+      // The student keeps class_id; a frozen student is identified by the freeze dates.
       const months = Math.min(3, Math.max(1, Number(freezeMonths)));
-      const end = new Date(`${today}T12:00:00`);
-      end.setMonth(end.getMonth() + months);
-      ({ error } = await supabase.from("students").update({ class_id: null, freeze_start_date: today, freeze_months: months, freeze_end_date: end.toISOString().slice(0, 10) }).eq("id", promotingStudent.id));
+      freezePatch = { freeze_start_date: today, freeze_end_date: addMonthsClamped(today, months) };
+      ({ error } = await supabase.from("students").update({ ...freezePatch, freeze_months: months }).eq("id", promotingStudent.id));
     }
     if (error) {
       setPromotionMessage(error.message);
       return;
     }
     setClasses((current) => current.map((row) => {
+      if (row.id === promotingStudent.fromClassId && freezePatch) return { ...row, students: (row.students ?? []).map((student) => student.id === promotingStudent.id ? { ...student, ...freezePatch } : student) };
       if (row.id === promotingStudent.fromClassId) return { ...row, students: (row.students ?? []).filter((student) => student.id !== promotingStudent.id) };
-      if (promotionDestination === "class" && targetClass && row.id === targetClass.id) return { ...row, students: [...(row.students ?? []), { ...promotingStudent, class_id: targetClass.id, level: promotingStudent.next_level, promotion_candidate: false, next_level: null }] };
+      if (promotionDestination === "class" && targetClass && row.id === targetClass.id) return { ...row, students: [...(row.students ?? []), { ...promotingStudent, class_id: targetClass.id, level: String(promotingStudent.next_level ?? "").trim().toUpperCase(), promotion_candidate: false, next_level: null }] };
       return row;
     }));
     const destinationLabel = promotionDestination === "class" ? targetClass?.name ?? "next class" : promotionDestination === "waiting" ? "waiting list" : `freeze (${freezeMonths} month)`;
@@ -276,12 +346,12 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
     const rosterRows = students.map((student, index) => `
       <tr>
         <td>${index + 1}</td>
-        <td>${student.full_name}</td>
-        <td>${student.phone ?? ""}</td>
-        <td>${student.email ?? ""}</td>
-        <td>${student.level ?? ""}</td>
-        <td>${student.learning_mode ?? ""}</td>
-        <td>${student.status ?? ""}</td>
+        <td>${escapeHtml(student.full_name)}</td>
+        <td>${escapeHtml(student.phone ?? "")}</td>
+        <td>${escapeHtml(student.email ?? "")}</td>
+        <td>${escapeHtml(student.level ?? "")}</td>
+        <td>${escapeHtml(student.learning_mode ?? "")}</td>
+        <td>${escapeHtml(student.status ?? "")}</td>
       </tr>
     `).join("");
     const win = window.open("", "_blank", "width=900,height=700");
@@ -289,7 +359,7 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
     win.document.write(`
       <html>
         <head>
-          <title>${row.name} roster</title>
+          <title>${escapeHtml(row.name)} roster</title>
           <style>
             body { font-family: Inter, Arial, sans-serif; color: #0b0b0b; padding: 24px; }
             h1 { margin: 0 0 8px; font-size: 24px; }
@@ -301,14 +371,14 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
           </style>
         </head>
         <body>
-          <h1>${row.name}</h1>
+          <h1>${escapeHtml(row.name)}</h1>
           <div class="meta">
-            <p><strong>Level:</strong> ${row.level ?? ""}</p>
-            <p><strong>Teacher:</strong> ${row.teacher}</p>
-            <p><strong>Mode:</strong> ${row.learning_mode ?? ""}</p>
-            <p><strong>Schedule:</strong> ${row.schedule ?? ""}</p>
-            <p><strong>Capacity:</strong> ${row.capacity}</p>
-            <p><strong>Students:</strong> ${students.length}</p>
+            <p><strong>Level:</strong> ${escapeHtml(row.level ?? "")}</p>
+            <p><strong>Teacher:</strong> ${escapeHtml(row.teacher)}</p>
+            <p><strong>Mode:</strong> ${escapeHtml(row.learning_mode ?? "")}</p>
+            <p><strong>Schedule:</strong> ${escapeHtml(row.schedule ?? "")}</p>
+            <p><strong>Capacity:</strong> ${escapeHtml(row.capacity)}</p>
+            <p><strong>Students:</strong> ${activeCount(row, academyDate())}</p>
           </div>
           <table>
             <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Email</th><th>Level</th><th>Mode</th><th>Status</th></tr></thead>
@@ -322,7 +392,7 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
   }
 
   function printFilteredClasses() {
-    const rows = filteredRows.map((row) => `<tr><td>${row.name}</td><td>${row.level ?? ""}</td><td>${row.current_chapter ?? ""}</td><td>${row.teacher}</td><td>${row.learning_mode ?? ""}</td><td>${row.schedule ?? ""}</td><td>${groupStatus(row).label}</td><td>${row.sessions_done ?? 0}/${row.total_sessions ?? 0}</td></tr>`).join("");
+    const rows = filteredRows.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.level ?? "")}</td><td>${escapeHtml(row.current_chapter ?? "")}</td><td>${escapeHtml(row.teacher)}</td><td>${escapeHtml(row.learning_mode ?? "")}</td><td>${escapeHtml(row.schedule ?? "")}</td><td>${escapeHtml(groupStatus(row).label)}</td><td>${escapeHtml(row.sessions_done ?? 0)}/${escapeHtml(row.total_sessions ?? 0)}</td></tr>`).join("");
     const win = window.open("", "_blank", "width=1100,height=800");
     if (!win) return;
     win.document.write(`<html><head><title>Filtered classes</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{font-size:22px}table{border-collapse:collapse;width:100%;margin-top:18px}th,td{border:1px solid #ccc;padding:8px;text-align:left}th{background:#1B4332;color:white}</style></head><body><h1>Filtered classes (${filteredRows.length})</h1><table><thead><tr><th>Name</th><th>Level</th><th>Chapter</th><th>Teacher</th><th>Mode</th><th>Schedule</th><th>Status</th><th>Sessions</th></tr></thead><tbody>${rows || `<tr><td colspan="8">No classes match the selected filters.</td></tr>`}</tbody></table><script>window.print();</script></body></html>`);
@@ -342,19 +412,19 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
           )}
         </CardHeader>
         <CardContent>
-          <form onSubmit={submit} className="grid gap-3 md:grid-cols-4">
-            <label className="grid gap-1 text-sm"><span className="font-medium">Class name</span><Input required value={name} onChange={(event) => setName(event.target.value)} /></label>
-            <label className="grid gap-1 text-sm"><span className="font-medium">Teacher</span><Select required value={teacherId} onChange={(event) => setTeacherId(event.target.value)}>
+          <form noValidate onSubmit={submit} className="grid gap-3 md:grid-cols-4">
+            <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Class name")}</span><Input aria-required="true" className={requiredClass("Class name")} value={name} onChange={(event) => { setName(event.target.value); setInvalidFields((fields) => fields.filter((field) => field !== "Class name")); }} /></label>
+            <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Teacher")}</span><Select aria-required="true" className={requiredClass("Teacher")} value={teacherId} onChange={(event) => { setTeacherId(event.target.value); setInvalidFields((fields) => fields.filter((field) => field !== "Teacher")); }}>
               {teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
             </Select></label>
-            <label className="grid gap-1 text-sm"><span className="font-medium">Level</span><Input value={level} onChange={(event) => setLevel(event.target.value)} /></label>
+            <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Level")}</span><Input aria-required="true" className={requiredClass("Level")} value={level} onChange={(event) => { setLevel(event.target.value); setInvalidFields((fields) => fields.filter((field) => field !== "Level")); }} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Current chapter / lesson</span><Input value={currentChapter} onChange={(event) => setCurrentChapter(event.target.value)} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Online / Offline</span><Select value={learningMode} onChange={(event) => setLearningMode(event.target.value)}>
               <option value="offline">Offline</option>
               <option value="online">Online</option>
             </Select></label>
             <div className="grid gap-2 md:col-span-4">
-              <p className="text-sm font-medium">Weekly schedule</p>
+              <p className={`text-sm font-medium ${requiredClass("Weekly schedule")}`}>{requiredLabel("Weekly schedule")}</p>
               <div className="grid grid-cols-2 gap-1.5 md:grid-cols-7">
                 {weekDays.map((day) => (
                   <Button key={day} className="h-9 px-2 text-xs" type="button" variant={scheduleSlots[day] !== undefined ? "default" : "outline"} onClick={() => toggleDay(day)}>
@@ -371,19 +441,19 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
                 ))}
               </div>
             </div>
-            <label className="grid gap-1 text-sm"><span className="font-medium">Capacity</span><Input required type="number" min="1" value={capacity} onChange={(event) => setCapacity(event.target.value)} /></label>
-            <label className="grid gap-1 text-sm"><span className="font-medium">Total sessions</span><Input required type="number" min="0" value={totalSessions} onChange={(event) => setTotalSessions(event.target.value)} /></label>
-            <label className="grid gap-1 text-sm"><span className="font-medium">Sessions completed</span><Input required type="number" min="0" max={totalSessions} value={sessionsDone} onChange={(event) => setSessionsDone(event.target.value)} /></label>
+            <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Capacity")}</span><Input aria-required="true" className={requiredClass("Capacity")} type="number" min="1" value={capacity} onChange={(event) => setCapacity(event.target.value)} /></label>
+            <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Total sessions")}</span><Input aria-required="true" className={requiredClass("Total sessions")} type="number" min="0" value={totalSessions} onChange={(event) => setTotalSessions(event.target.value)} /></label>
+            <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Sessions completed")}</span><Input aria-required="true" className={requiredClass("Sessions completed")} type="number" min="0" max={totalSessions} value={sessionsDone} onChange={(event) => setSessionsDone(event.target.value)} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Group status</span><Select value={classStatus} onChange={(event) => setClassStatus(event.target.value)}>
               <option value="not_started">Not started</option>
               <option value="started">Started</option>
               <option value="finished">Finished</option>
             </Select></label>
-            <Button type="submit" className="md:col-span-4" disabled={!canSubmit}>
+            <Button type="submit" className="md:col-span-4">
               {editing ? <Edit2 size={16} /> : <Plus size={16} />}
               {buttonLabel}
             </Button>
-            {saved && <p className="text-sm text-muted-foreground md:col-span-4">{saved}</p>}
+            {saved && <p role="alert" className={`text-sm md:col-span-4 ${invalidFields.length ? "text-red-600" : "text-muted-foreground"}`}>{saved}</p>}
           </form>
         </CardContent>
       </Card>
@@ -433,7 +503,7 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
                           <span className={row.session_qualified ? "font-semibold text-green-700" : "text-muted-foreground"}>{row.session_qualified ? "Completed" : `${row.student_scan_count ?? 0}/3 students${row.teacher_scanned ? " + teacher" : " + teacher pending"}`}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3">{students.length}</td>
+                      <td className="px-4 py-3">{activeCount(row, today)} / {Number(row.capacity) > 0 ? row.capacity : "unlimited"}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-2">
                           <Button size="sm" variant="outline" onClick={() => startEdit(row)}><Edit2 size={16} /> Edit</Button>
@@ -461,7 +531,7 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
                                     <td className="px-3 py-2">{student.email}</td>
                                     <td className="px-3 py-2">{student.level}</td>
                                     <td className="px-3 py-2">{student.learning_mode}</td>
-                                    <td className="px-3 py-2">{student.status}</td>
+                                    <td className="px-3 py-2">{student.status}{isFrozen(student, today) && <span className="ml-2 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">Frozen until {student.freeze_end_date}</span>}</td>
                                     <td className="px-3 py-2">
                                       <Button type="button" size="sm" variant="outline" onClick={() => { setPromotingStudent({ ...student, fromClassId: row.id, fromClassName: row.name }); setPromotionDestination("class"); setPromotionClassId(""); setFreezeMonths("1"); setPromotionMessage(""); }}>Promote / transfer</Button>
                                     </td>
@@ -487,32 +557,32 @@ export function ClassManager({ initialClasses, teachers }: { initialClasses: Cla
           <div className="w-full max-w-md rounded-lg border border-accent bg-white p-5 shadow-2xl">
             <div className="mb-4 flex items-start justify-between gap-4 border-b pb-3">
               <div>
-                <h2 id="class-promote-title" className="text-lg font-semibold">Promote student</h2>
+                <h2 id="class-promote-title" className="text-lg font-semibold">{promotionCopy.title}</h2>
                 <p className="text-sm text-muted-foreground">{promotingStudent.full_name} · {promotingStudent.level} → {promotingStudent.next_level}</p>
               </div>
-              <Button type="button" size="sm" variant="outline" onClick={() => setPromotingStudent(null)}><X size={16} /> Cancel</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setPromotingStudent(null)}><X size={16} /> {promotionCopy.cancel}</Button>
             </div>
             <label className="mb-3 grid gap-1 text-sm font-medium">
-              Destination
+              {promotionCopy.destination}
               <Select value={promotionDestination} onChange={(event) => { setPromotionDestination(event.target.value as "class" | "waiting" | "freeze"); setPromotionClassId(""); }}>
-                <option value="class">Next-level class</option>
-                <option value="waiting">Waiting list</option>
-                <option value="freeze">Freeze student</option>
+                <option value="class">{promotionCopy.nextClass}</option>
+                <option value="waiting">{promotionCopy.waiting}</option>
+                <option value="freeze">{promotionCopy.freeze}</option>
               </Select>
             </label>
             {promotionDestination === "class" && <label className="grid gap-1 text-sm font-medium">
-              Choose an existing next-level class
+              {promotionCopy.chooseClass}
               <Select value={promotionClassId} onChange={(event) => setPromotionClassId(event.target.value)}>
-                <option value="">Choose class...</option>
+                <option value="">{promotionCopy.choose}</option>
                 {promotionClasses.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.level}</option>)}
               </Select>
             </label>}
             {promotionDestination === "freeze" && <label className="grid gap-1 text-sm font-medium">
-              Freeze duration
-              <Select value={freezeMonths} onChange={(event) => setFreezeMonths(event.target.value)}><option value="1">1 month</option><option value="2">2 months</option><option value="3">3 months</option></Select>
+              {promotionCopy.duration}
+              <Select value={freezeMonths} onChange={(event) => setFreezeMonths(event.target.value)}><option value="1">{promotionCopy.month}</option><option value="2">{promotionCopy.months}</option><option value="3">{promotionCopy.threeMonths}</option></Select>
             </label>}
-            {promotionDestination === "class" && !promotionClasses.length && <p className="mt-3 text-sm text-muted-foreground">Create a class for the next level first, or choose Waiting list / Freeze student.</p>}
-            <Button type="button" className="mt-4 w-full" onClick={() => void promoteStudent()} disabled={promotionDestination === "class" ? !promotionClassId || !promotionClasses.length : false}>Confirm</Button>
+            {promotionDestination === "class" && !promotionClasses.length && <p className="mt-3 text-sm text-muted-foreground">{promotionCopy.createFirst}</p>}
+            <Button type="button" className="mt-4 w-full" onClick={() => void promoteStudent()} disabled={promotionDestination === "class" ? !promotionClassId || !promotionClasses.length : false}>{promotionCopy.confirm}</Button>
           </div>
         </div>
       )}

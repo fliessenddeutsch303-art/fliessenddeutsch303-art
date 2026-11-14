@@ -16,6 +16,6 @@ export async function recordAudit(action: string, entityType: string, entityId: 
     details,
   });
   if (action === "deleted" && typeof window !== "undefined") {
-    void fetch("/api/security-alert", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ actor: actor?.email ?? "Admin", entityType, entityId, details }) });
+    void fetch("/api/security-alert", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ entityType, entityId, details }) });
   }
 }

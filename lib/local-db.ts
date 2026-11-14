@@ -260,7 +260,7 @@ function withRelations(table: string, row: Row) {
 
 class LocalQuery {
   private filters: Array<(row: Row) => boolean> = [];
-  private filterSpecs: Array<{ type: "eq" | "neq" | "in" | "gte" | "lte"; key: string; value: unknown }> = [];
+  private filterSpecs: Array<{ type: "eq" | "neq" | "in" | "gte" | "lte" | "lt"; key: string; value: unknown }> = [];
   private sortKey: string | null = null;
   private ascending = true;
   private singleRow = false;
@@ -268,6 +268,8 @@ class LocalQuery {
   private wantsCount = false;
   private operation: "select" | "insert" | "update" | "upsert" | "delete" = "select";
   private payload: Row | Row[] | null = null;
+  private rangeFrom: number | null = null;
+  private rangeTo: number | null = null;
 
   constructor(private table: string) {}
 
@@ -330,7 +332,31 @@ class LocalQuery {
     return this;
   }
 
-  order(key: string, options?: { ascending?: boolean }) {
+  lt(key: string, value: string) {
+    this.filters.push((row) => row[key] != null && String(row[key]) < value);
+    this.filterSpecs.push({ type: "lt", key, value });
+    return this;
+  }
+
+  is(key: string, value: null) {
+    this.filters.push((row) => (row[key] ?? null) === value);
+    this.filterSpecs.push({ type: "eq", key, value });
+    return this;
+  }
+
+  range(from: number, to: number) {
+    this.rangeFrom = from;
+    this.rangeTo = to;
+    return this;
+  }
+
+  limit(count: number) {
+    return this.range(this.rangeFrom ?? 0, (this.rangeFrom ?? 0) + count - 1);
+  }
+
+  order(key: string, options?: { ascending?: boolean; referencedTable?: string }) {
+    // Ordering embedded rows is not modelled locally.
+    if (options?.referencedTable) return this;
     this.sortKey = key;
     this.ascending = options?.ascending ?? true;
     return this;
@@ -378,6 +404,8 @@ class LocalQuery {
           singleRow: this.singleRow,
           head: this.head,
           wantsCount: this.wantsCount,
+          rangeFrom: this.rangeFrom,
+          rangeTo: this.rangeTo,
         }),
       });
       if (!response.ok) return { data: null, error: { message: "Local data request failed" } } as unknown as Result;
@@ -406,9 +434,11 @@ class LocalQuery {
       const data = this.singleRow ? rows[0] ?? null : rows;
       return { data: clone(data), error: null, count: rows.length };
     }
-    const rows = this.matching().map((row) => withRelations(this.table, row));
+    const matched = this.matching();
+    const paged = this.rangeFrom === null ? matched : matched.slice(this.rangeFrom, (this.rangeTo ?? matched.length) + 1);
+    const rows = paged.map((row) => withRelations(this.table, row));
     const data = this.head ? null : this.singleRow ? rows[0] ?? null : rows;
-    return { data: clone(data), error: null, count: this.wantsCount ? rows.length : null };
+    return { data: clone(data), error: null, count: this.wantsCount ? matched.length : null };
   }
 }
 

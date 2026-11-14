@@ -57,7 +57,12 @@ export function TreasuryRecordsTable({ rows: initialRows, labels }: { rows: Trea
 
   async function saveEdit() {
     if (!editingId) return;
-    const payload = { type: draft.type, amount: Number(draft.amount), category: draft.category, date: draft.date, description: draft.description };
+    const amount = Number(draft.amount);
+    if (!draft.amount.trim() || !Number.isFinite(amount) || amount <= 0) {
+      setMessage("Enter an amount above 0.");
+      return;
+    }
+    const payload = { type: draft.type, amount, category: draft.category, date: draft.date, description: draft.description };
     const { error } = await createSupabaseBrowserClient().from("treasury_records").update(payload).eq("id", editingId);
     if (error) {
       setMessage(error.message);
@@ -87,7 +92,7 @@ export function TreasuryRecordsTable({ rows: initialRows, labels }: { rows: Trea
                 <td className="px-3 py-3"><Input type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></td>
                 <td className="px-3 py-3"><Select value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value as "income" | "expense" })}><option value="income">{labels.income}</option><option value="expense">{labels.expense}</option></Select></td>
                 <td className="px-3 py-3"><Input value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} /></td>
-                <td className="px-3 py-3"><Input type="number" step="0.01" value={draft.amount} onChange={(event) => setDraft({ ...draft, amount: event.target.value })} /></td>
+                <td className="px-3 py-3"><Input type="number" min="0.01" step="0.01" value={draft.amount} onChange={(event) => setDraft({ ...draft, amount: event.target.value })} /></td>
                 <td className="px-3 py-3"><Input value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></td>
                 <td className="px-3 py-3"><div className="flex gap-2"><Button size="sm" onClick={() => void saveEdit()}><Check size={16} /> {labels.saveChanges}</Button><Button size="sm" variant="outline" onClick={cancelEdit}><X size={16} /> {labels.cancel}</Button></div></td>
               </tr>

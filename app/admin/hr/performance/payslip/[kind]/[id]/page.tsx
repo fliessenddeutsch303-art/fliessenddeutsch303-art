@@ -4,19 +4,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth";
 import { calculatePayslips } from "@/lib/payslip";
 import { formatMoney } from "@/lib/utils";
+import { academyDate, academyMonthStart } from "@/lib/dates";
 
-function defaultStart() {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-}
 
 export default async function PayslipPage({ params, searchParams }: { params: Promise<{ kind: "teacher" | "worker"; id: string }>; searchParams: Promise<{ start?: string; end?: string }> }) {
   const { kind, id } = await params;
   const query = await searchParams;
-  const start = query.start ?? defaultStart();
-  const end = query.end ?? new Date().toISOString().slice(0, 10);
+  const start = query.start ?? academyMonthStart();
+  const end = query.end ?? academyDate();
   const { supabase } = await getCurrentUser("admin");
-  const row = (await calculatePayslips(supabase, start, end)).find((item) => item.kind === kind && item.id === id);
+  let row;
+  try {
+    row = (await calculatePayslips(supabase, start, end)).find((item) => item.kind === kind && item.id === id);
+  } catch (error) {
+    return <div role="alert" className="rounded-lg border border-red-300 bg-white p-6 text-red-700">{error instanceof Error ? error.message : "Payroll could not be calculated."}</div>;
+  }
   if (!row) return <div className="rounded-lg border bg-white p-6">Payslip not found.</div>;
 
   return (
@@ -36,7 +38,7 @@ export default async function PayslipPage({ params, searchParams }: { params: Pr
             <p><strong>Name:</strong> {row.name}</p>
             <p><strong>Role:</strong> {row.role}</p>
             <p><strong>Pay type:</strong> {row.payType}</p>
-            <p><strong>Generated:</strong> {new Date().toISOString().slice(0, 10)}</p>
+            <p><strong>Generated:</strong> {academyDate()}</p>
           </section>
 
           <section className="grid gap-4 md:grid-cols-4">
@@ -59,7 +61,7 @@ export default async function PayslipPage({ params, searchParams }: { params: Pr
             <section>
               <h2 className="mb-2 font-semibold">Adjustment notes</h2>
               <ul className="list-disc space-y-1 pl-5 text-sm">
-                {row.notes.map((note) => <li key={note}>{note}</li>)}
+                {row.notes.map((note, index) => <li key={`${index}-${note}`}>{note}</li>)}
               </ul>
             </section>
           )}

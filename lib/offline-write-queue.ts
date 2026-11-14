@@ -1,9 +1,10 @@
 "use client";
 
 const STORAGE_KEY = "fd_pending_writes";
+const ATTENDANCE_STORAGE_KEY = "fd_pending_sync";
 const EVENT_NAME = "fd-offline-sync";
 const mutatingMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-let syncPromise: Promise<{ synced: number; pending: number }> | null = null;
+let syncPromise: Promise<{ synced: number; pending: number; failed: string[] }> | null = null;
 
 export type PendingWrite = {
   id: string;
@@ -12,6 +13,7 @@ export type PendingWrite = {
   headers: [string, string][];
   body: string | null;
   createdAt: string;
+  userId?: string | null;
   lastError?: string;
 };
 
@@ -27,6 +29,27 @@ function readQueue(): PendingWrite[] {
 
 function writeQueue(queue: PendingWrite[]) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(queue));
+  window.dispatchEvent(new Event(EVENT_NAME));
+}
+
+export function userIdFromToken(token: string | null | undefined) {
+  try {
+    const part = token?.split(".")[1];
+    if (!part) return null;
+    const json = JSON.parse(decodeURIComponent(Array.from(atob(part.replace(/-/g, "+").replace(/_/g, "/")), (char) => `%${char.charCodeAt(0).toString(16).padStart(2, "0")}`).join("")));
+    return typeof json.sub === "string" ? json.sub : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Empties both offline queues (student/staff attendance and generic Supabase writes). */
+export function clearOfflineQueues() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(ATTENDANCE_STORAGE_KEY);
+  } catch {}
   window.dispatchEvent(new Event(EVENT_NAME));
 }
 
@@ -69,27 +92,52 @@ async function enqueueRequest(url: string, method: string, headers: Headers, bod
     headers: Array.from(headers.entries()).filter(([key]) => key.toLowerCase() !== "content-length"),
     body,
     createdAt: new Date().toISOString(),
+    userId: userIdFromToken(headers.get("authorization")?.replace(/^Bearer\s+/i, "")),
   });
   writeQueue(queue);
 }
 
-export async function syncPendingWrites(nativeFetch: typeof window.fetch) {
-  if (typeof window === "undefined" || !navigator.onLine) return { synced: 0, pending: pendingWriteCount() };
+/** 401/408/429/5xx can succeed later; any other 4xx will never succeed and must not block the queue. */
+function isRetryable(status: number) {
+  return status === 401 || status === 408 || status === 429 || status >= 500;
+}
+
+export async function syncPendingWrites(nativeFetch: typeof window.fetch, getAccessToken?: () => Promise<string | null>) {
+  if (typeof window === "undefined" || !navigator.onLine) return { synced: 0, pending: pendingWriteCount(), failed: [] as string[] };
   if (syncPromise) return syncPromise;
 
   syncPromise = (async () => {
     let queue = readQueue();
     let synced = 0;
-    for (const item of queue) {
+    const failed: string[] = [];
+    // Stored requests carry the access token from when they were queued; it expires after an hour.
+    const accessToken = getAccessToken ? await getAccessToken().catch(() => null) : null;
+    const currentUserId = userIdFromToken(accessToken);
+    for (const item of [...queue]) {
+      if (item.userId && currentUserId && item.userId !== currentUserId) {
+        failed.push(`${new URL(item.url, window.location.href).pathname.split("/").pop()}: queued by a different user, discarded`);
+        queue = queue.filter((entry) => entry.id !== item.id);
+        writeQueue(queue);
+        continue;
+      }
       try {
+        const headers = new Headers(item.headers);
+        if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
         const response = await nativeFetch(item.url, {
           method: item.method,
-          headers: new Headers(item.headers),
+          headers,
           body: item.body ?? undefined,
         });
         if (!response.ok) {
-          queue = queue.map((entry) => entry.id === item.id ? { ...entry, lastError: `HTTP ${response.status}` } : entry);
-          break;
+          const detail = await response.text().catch(() => "");
+          if (isRetryable(response.status)) {
+            queue = queue.map((entry) => entry.id === item.id ? { ...entry, lastError: `HTTP ${response.status}` } : entry);
+            break;
+          }
+          failed.push(`${new URL(item.url).pathname.split("/").pop()}: ${detail.slice(0, 200) || `HTTP ${response.status}`}`);
+          queue = queue.filter((entry) => entry.id !== item.id);
+          writeQueue(queue);
+          continue;
         }
         queue = queue.filter((entry) => entry.id !== item.id);
         synced += 1;
@@ -101,7 +149,7 @@ export async function syncPendingWrites(nativeFetch: typeof window.fetch) {
       }
     }
     writeQueue(queue);
-    return { synced, pending: queue.length };
+    return { synced, pending: queue.length, failed };
   })().finally(() => {
     syncPromise = null;
   });

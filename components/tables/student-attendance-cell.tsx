@@ -1,32 +1,41 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
 
-export function StudentAttendanceCell({ studentId }: { studentId: string }) {
+function slug(value: string) {
+  return value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "profile";
+}
+
+export function StudentAttendanceCell({ studentName, portalToken }: { studentName: string; portalToken?: string | null }) {
   const [qr, setQr] = useState("");
-  const [origin, setOrigin] = useState("");
-  const url = useMemo(() => (origin ? `${origin}/attendance/student/${studentId}` : `/attendance/student/${studentId}`), [origin, studentId]);
+  const [qrError, setQrError] = useState(false);
+  const path = useMemo(() => (portalToken ? `/attendance/student/${slug(studentName)}-${portalToken}` : ""), [studentName, portalToken]);
 
-  useEffect(() => {
-    setOrigin(window.location.origin);
-  }, []);
+  if (!path) return <span className="text-xs text-muted-foreground">No link yet</span>;
+  const fullUrl = () => `${window.location.origin}${path}`;
 
-  useEffect(() => {
-    if (!origin) return;
-    QRCode.toDataURL(url, { margin: 1, scale: 3, color: { dark: "#111111", light: "#FFFFFF" } }).then(setQr).catch(() => setQr(""));
-  }, [origin, url]);
+  async function showQr() {
+    setQrError(false);
+    try {
+      setQr(await QRCode.toDataURL(fullUrl(), { margin: 1, scale: 3, color: { dark: "#111111", light: "#FFFFFF" } }));
+    } catch {
+      setQrError(true);
+    }
+  }
 
   return (
     <div className="flex min-w-40 items-center gap-2">
-      {qr ? <Image src={qr} alt="Student attendance QR" width={54} height={54} unoptimized /> : <div className="h-[54px] w-[54px] rounded border bg-muted" />}
+      {qr ? <Image src={qr} alt="Student attendance QR" width={54} height={54} unoptimized /> : null}
       <div className="grid gap-1">
+        {!qr && <Button type="button" size="sm" variant="outline" onClick={() => void showQr()}>Show QR</Button>}
+        {qrError && <span className="text-xs text-red-700">QR failed</span>}
         <Button asChild size="sm" variant="outline">
-          <a href={url}>Check in</a>
+          <a href={path}>Check in</a>
         </Button>
-        <button type="button" className="text-left text-xs text-muted-foreground hover:text-primary" onClick={() => navigator.clipboard.writeText(url)}>
+        <button type="button" className="text-left text-xs text-muted-foreground hover:text-primary" onClick={() => void navigator.clipboard.writeText(fullUrl())}>
           Copy link
         </button>
       </div>

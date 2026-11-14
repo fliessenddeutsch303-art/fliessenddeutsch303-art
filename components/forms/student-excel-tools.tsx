@@ -3,7 +3,8 @@
 import { Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { asNumber, exportExcel, pick, readExcel } from "@/lib/excel";
+import { fetchAll } from "@/lib/supabase/fetch-all";
+import { asNumber, exportExcel, normalizePhone, pick, readExcel } from "@/lib/excel";
 
 type ClassOption = { id: string; name: string };
 type StudentRow = Record<string, unknown>;
@@ -52,18 +53,23 @@ export function StudentExcelTools({ rows, classes }: { rows: StudentRow[]; class
   async function importStudents(file: File) {
     const excelRows = await readExcel(file);
     const supabase = createSupabaseBrowserClient();
-    const payload = excelRows.map((row) => {
+    const unmatched = new Set<string>();
+    const rowsWithClass = excelRows.map((row) => {
       const className = String(pick(row, ["class", "class name", "course", "course class"]) ?? "");
-      const klass = classes.find((item) => item.name.toLowerCase() === className.toLowerCase());
+      const klass = classes.find((item) => item.name.toLowerCase() === className.trim().toLowerCase());
+      if (className.trim() && !klass) unmatched.add(className.trim());
       return {
         full_name: String(pick(row, ["name", "full name", "student", "student name"]) ?? ""),
-        phone: String(pick(row, ["phone", "mobile", "telephone"]) ?? ""),
+        phone: normalizePhone(pick(row, ["phone", "mobile", "telephone"])),
         email: String(pick(row, ["email", "mail"]) ?? ""),
         level: String(pick(row, ["level"]) ?? ""),
         tags: String(pick(row, ["tags", "tag"]) ?? "").split(",").map((tag) => tag.trim()).filter(Boolean),
         class_id: klass?.id ?? null,
         learning_mode: String(pick(row, ["online/offline", "online / offline", "mode", "learning mode"]) ?? "offline").toLowerCase() === "online" ? "online" : "offline",
-        status: String(pick(row, ["status"]) ?? "active").toLowerCase(),
+        status: (() => {
+          const status = String(pick(row, ["status"]) || "active").trim().toLowerCase();
+          return ["active", "inactive", "graduated"].includes(status) ? status : "active";
+        })(),
         total_price: asNumber(pick(row, ["price", "total price", "course price"])),
         amount_paid: asNumber(pick(row, ["paid", "amount paid"])),
         payment_due_date: String(pick(row, ["payment date", "payment due date", "due date", "arranged date"]) ?? "") || null,
@@ -74,8 +80,41 @@ export function StudentExcelTools({ rows, classes }: { rows: StudentRow[]; class
         level_completed_stopped: ["yes", "true", "1"].includes(String(pick(row, ["finished level and stopped", "finished and stopped"]) ?? "").toLowerCase()),
         enrolled_at: new Date().toISOString(),
       };
-    }).filter((row) => row.full_name && row.phone);
-    if (payload.length) await supabase.from("students").insert(payload);
+    });
+    const named = rowsWithClass.filter((row) => row.full_name && row.phone);
+    if (!named.length) {
+      window.alert("No student rows with both a name and a phone number were found.");
+      return;
+    }
+    const { data: existing, error: existingError } = await fetchAll<{ phone: string | null }>((from, to) => supabase.from("students").select("phone").order("id").range(from, to));
+    if (existingError) {
+      window.alert(`Import failed, could not check existing students: ${existingError.message}`);
+      return;
+    }
+    const seen = new Set((existing ?? []).map((student) => normalizePhone(student.phone)));
+    const payload = named.filter((row) => {
+      if (seen.has(row.phone)) return false;
+      seen.add(row.phone);
+      return true;
+    });
+    const duplicates = named.length - payload.length;
+    const missing = excelRows.length - named.length;
+    const failures: string[] = [];
+    let imported = 0;
+    for (let start = 0; start < payload.length; start += 100) {
+      const chunk = payload.slice(start, start + 100);
+      const { error } = await supabase.from("students").insert(chunk);
+      if (error) failures.push(`rows ${start + 1}-${start + chunk.length} of the new students (${error.message})`);
+      else imported += chunk.length;
+    }
+    const notes = [
+      `Imported ${imported}, skipped ${duplicates} duplicates.`,
+      missing ? `${missing} rows skipped (missing name or phone).` : "",
+      unmatched.size ? `Classes not found (students imported without a class): ${[...unmatched].join(", ")}.` : "",
+      failures.length ? `Failed: ${failures.join("; ")}. Fix those rows and import again; imported students are skipped as duplicates.` : "",
+    ].filter(Boolean);
+    window.alert(notes.join("\n"));
+    if (!imported) return;
     window.location.reload();
   }
 

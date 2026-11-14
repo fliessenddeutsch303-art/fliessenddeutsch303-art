@@ -12,7 +12,7 @@ export type UserProfile = {
   role: Role;
   is_active: boolean;
   permissions: Permissions | null;
-  payroll_type?: "monthly_salary" | "monthly_wage" | "hourly";
+  payroll_type?: "monthly_salary" | "monthly_wage" | "hourly" | "per_session";
   monthly_salary?: number;
   monthly_wage?: number;
   hourly_rate?: number;

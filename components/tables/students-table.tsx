@@ -11,6 +11,7 @@ import { Select } from "@/components/ui/select";
 import { exportExcel } from "@/lib/excel";
 import { matchesBilingualTagSearch } from "@/lib/tag-search";
 import { formatMoney } from "@/lib/utils";
+import { academyDate } from "@/lib/dates";
 
 function paymentStatus(row: Record<string, unknown>) {
   const balance = Math.max(0, Number(row.total_price ?? 0) - Number(row.amount_paid ?? 0));
@@ -18,7 +19,7 @@ function paymentStatus(row: Record<string, unknown>) {
   if (balance <= 0) return <Badge className="border-green-200 bg-green-50 text-green-700">Paid</Badge>;
   if (!dueDate) return <Badge className="border-amber-200 bg-amber-50 text-amber-700">No date</Badge>;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = academyDate();
   if (dueDate < today) return <Badge className="border-brand-red bg-red-50 text-brand-red">Overdue</Badge>;
   if (dueDate === today) return <Badge className="border-brand-red bg-red-50 text-brand-red">Due today</Badge>;
   return <Badge className="border-accent bg-accent/20 text-primary">Scheduled</Badge>;
@@ -40,12 +41,12 @@ function freezeStatus(row: Record<string, unknown>) {
   const start = String(row.freeze_start_date ?? "");
   const end = String(row.freeze_end_date ?? "");
   if (!start || !end || Number(row.freeze_months ?? 0) === 0) return "none";
-  return end < new Date().toISOString().slice(0, 10) ? "expired" : "active";
+  return end < academyDate() ? "expired" : "active";
 }
 
 type PromotionClass = { id: string; name: string; level?: string | null };
 
-export function StudentsTable({ rows, classes = [], onEdit, onPromote }: { rows: Record<string, unknown>[]; classes?: PromotionClass[]; onEdit?: (row: Record<string, unknown>) => void; onPromote?: (student: Record<string, unknown>, classId: string) => Promise<{ ok: boolean; message: string }> }) {
+export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewProfile = true }: { rows: Record<string, unknown>[]; classes?: PromotionClass[]; onEdit?: (row: Record<string, unknown>) => void; onPromote?: (student: Record<string, unknown>, classId: string) => Promise<{ ok: boolean; message: string }>; canViewProfile?: boolean }) {
   const [nameQuery, setNameQuery] = useState("");
   const [levelFilter, setLevelFilter] = useState("");
   const [teacherFilter, setTeacherFilter] = useState("");
@@ -124,7 +125,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote }: { rows:
         Paid: Number(row.amount_paid ?? 0),
         Balance: Math.max(0, Number(row.total_price ?? 0) - Number(row.amount_paid ?? 0)),
         Due: row.payment_due_date as string,
-        Alert: Math.max(0, Number(row.total_price ?? 0) - Number(row.amount_paid ?? 0)) <= 0 ? "Paid" : String(row.payment_due_date ?? "") < new Date().toISOString().slice(0, 10) ? "Overdue" : String(row.payment_due_date ?? "") === new Date().toISOString().slice(0, 10) ? "Due today" : "Scheduled",
+        Alert: Math.max(0, Number(row.total_price ?? 0) - Number(row.amount_paid ?? 0)) <= 0 ? "Paid" : String(row.payment_due_date ?? "") < academyDate() ? "Overdue" : String(row.payment_due_date ?? "") === academyDate() ? "Due today" : "Scheduled",
         Comment: row.payment_comment as string,
         "Freeze start": row.freeze_start_date as string,
         "Freeze months": Number(row.freeze_months ?? 0),
@@ -213,10 +214,10 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote }: { rows:
                   <td className="px-4 py-3">{row.level_completed_stopped ? <Badge className="border-yellow-200 bg-yellow-50 text-yellow-700"><CheckCircle2 size={15} /> Finished level</Badge> : ""}</td>
                   <td className="px-4 py-3">{String(row.payment_comment ?? "")}</td>
                   <td className="px-4 py-3">{String(row.status ?? "")}</td>
-                  <td className="px-4 py-3"><StudentAttendanceCell studentId={id} /></td>
+                  <td className="px-4 py-3"><StudentAttendanceCell studentName={String(row.full_name ?? "")} portalToken={typeof row.portal_token === "string" ? row.portal_token : null} /></td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
-                      <Button asChild size="sm" variant="outline"><Link href={`/admin/students/${id}`}>Profile</Link></Button>
+                      {canViewProfile && <Button asChild size="sm" variant="outline"><Link href={`/admin/students/${id}`}>Profile</Link></Button>}
                       <Button asChild size="sm" variant="outline"><Link href={`/receipts/student/${id}`}>Receipt</Link></Button>
                       {onEdit && <Button size="sm" variant="outline" onClick={() => onEdit(row)}>Edit</Button>}
                     </div>

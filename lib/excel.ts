@@ -26,11 +26,18 @@ export function asBoolean(value: unknown) {
   return false;
 }
 
+function localDate(value: Date) {
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+}
+
 export async function readExcel(file: File): Promise<ExcelRow[]> {
   const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: "array" });
+  // cellDates turns Excel date serials (e.g. 45962) into dates the database accepts.
+  const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  return XLSX.utils.sheet_to_json<ExcelRow>(sheet, { defval: "" });
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+  return rows.map((row) => Object.fromEntries(Object.entries(row).map(([key, value]) => [key.trim(), value instanceof Date ? localDate(value) : typeof value === "string" ? value.trim() : value as ExcelRow[string]])));
 }
 
 type ExportExcelOptions = {
@@ -62,3 +69,6 @@ export function exportExcel(filename: string, rows: ExcelRow[], sheetName = "She
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
   XLSX.writeFile(workbook, filename);
 }
+
+/** Excel stores unformatted phone numbers as numbers and drops the leading 0 of Egyptian mobiles. */
+export { normalizePhone } from "./phone";

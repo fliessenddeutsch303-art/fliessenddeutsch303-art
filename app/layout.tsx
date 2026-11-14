@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cairo, Inter } from "next/font/google";
 import { direction } from "@/lib/i18n";
 import { getCurrentLanguage } from "@/lib/i18n-server";
@@ -13,7 +13,11 @@ const cairo = Cairo({ subsets: ["arabic", "latin"], variable: "--font-cairo" });
 export const metadata: Metadata = {
   title: "Fließend Deutsch Academy",
   description: "Academy management system for Fließend Deutsch",
+  manifest: "/manifest.json",
+  icons: { icon: "/icon-192.png", apple: "/icon-192.png" },
 };
+
+export const viewport: Viewport = { themeColor: "#0B0B0B" };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const lang = await getCurrentLanguage();

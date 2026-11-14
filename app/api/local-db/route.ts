@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { hasSupabaseEnv } from "@/lib/env";
 import { createLocalSupabaseClient } from "@/lib/local-db";
 
-type Filter = { type: "eq" | "neq" | "in" | "gte" | "lte"; key: string; value: unknown };
+type Filter = { type: "eq" | "neq" | "in" | "gte" | "lte" | "lt"; key: string; value: unknown };
 
 export async function POST(request: Request) {
+  if (hasSupabaseEnv()) return NextResponse.json({ error: "Not found" }, { status: 404 });
   try {
     const body = await request.json() as {
       table: string;
@@ -15,6 +17,8 @@ export async function POST(request: Request) {
       singleRow?: boolean;
       head?: boolean;
       wantsCount?: boolean;
+      rangeFrom?: number | null;
+      rangeTo?: number | null;
     };
     if (!body.table || !/^[a-z_]+$/.test(body.table)) return NextResponse.json({ error: "Invalid local table" }, { status: 400 });
     const client = createLocalSupabaseClient() as any;
@@ -30,8 +34,10 @@ export async function POST(request: Request) {
       if (filter.type === "in") query = query.in(filter.key, Array.isArray(filter.value) ? filter.value : []);
       if (filter.type === "gte") query = query.gte(filter.key, String(filter.value));
       if (filter.type === "lte") query = query.lte(filter.key, String(filter.value));
+      if (filter.type === "lt") query = query.lt(filter.key, String(filter.value));
     }
     if (body.sortKey) query = query.order(body.sortKey, { ascending: body.ascending ?? true });
+    if (typeof body.rangeFrom === "number") query = query.range(body.rangeFrom, body.rangeTo ?? body.rangeFrom);
     const result = body.singleRow ? await query.single() : await query;
     if (body.operation !== "select" && body.table !== "audit_logs" && !result.error) {
       const changedRows = (Array.isArray(result.data) ? result.data : result.data ? [result.data] : []) as Array<Record<string, unknown>>;

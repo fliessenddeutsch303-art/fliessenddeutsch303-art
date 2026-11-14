@@ -2,12 +2,13 @@ import { FeedbackRecordForm } from "@/components/forms/client-addition-forms";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/tables/data-table";
 import { getCurrentUser } from "@/lib/auth";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 export default async function FeedbackPage() {
   const { supabase } = await getCurrentUser("admin");
   const [feedback, students, teachers] = await Promise.all([
-    supabase.from("feedback_records").select("*").order("created_at", { ascending: false }),
-    supabase.from("students").select("id,full_name"),
+    fetchAll((from, to) => supabase.from("feedback_records").select("*").order("created_at", { ascending: false }).order("id").range(from, to)),
+    fetchAll((from, to) => supabase.from("students").select("id,full_name").order("full_name").order("id").range(from, to)),
     supabase.from("teachers").select("id,name"),
   ]);
   const rows = (feedback.data ?? []).map((item) => ({

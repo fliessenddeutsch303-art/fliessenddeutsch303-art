@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/api-auth";
 
 export async function GET() {
-  const { supabase, user } = await getCurrentUser(["admin", "sales", "reception", "teacher"]);
+  const auth = await requireApiUser(["admin", "sales", "reception", "teacher"]);
+  if (!auth.ok) return auth.response;
+  const { supabase, profile: user } = auth;
   const { data, error } = await supabase.from("report_snapshots").select("section,rows").eq("owner_id", user.id);
   // Older hosted projects may not have received the optional snapshot migration yet.
   // Keep live reports usable and let the import action fall back to local storage.
@@ -12,7 +14,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { supabase, user } = await getCurrentUser(["admin", "sales", "reception", "teacher"]);
+  const auth = await requireApiUser(["admin", "sales", "reception", "teacher"]);
+  if (!auth.ok) return auth.response;
+  const { supabase, profile: user } = auth;
   const body = await request.json() as { section?: string; rows?: unknown[] };
   if (!body.section || !Array.isArray(body.rows)) return NextResponse.json({ error: "Invalid report snapshot" }, { status: 400 });
   const { error } = await supabase.from("report_snapshots").upsert({
@@ -23,5 +27,16 @@ export async function POST(request: Request) {
   }, { onConflict: "owner_id,section" });
   if (error && error.message.includes("report_snapshots")) return NextResponse.json({ error: "Cloud report snapshots are not configured yet." }, { status: 503 });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
+
+export async function DELETE(request: Request) {
+  const auth = await requireApiUser(["admin", "sales", "reception", "teacher"]);
+  if (!auth.ok) return auth.response;
+  const { supabase, profile: user } = auth;
+  const body = await request.json().catch(() => ({})) as { section?: string };
+  if (!body.section) return NextResponse.json({ error: "Section is required" }, { status: 400 });
+  const { error } = await supabase.from("report_snapshots").delete().eq("owner_id", user.id).eq("section", body.section);
+  if (error && !error.message.includes("report_snapshots")) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

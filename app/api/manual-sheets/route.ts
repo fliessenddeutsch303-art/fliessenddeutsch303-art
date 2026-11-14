@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/api-auth";
 import { hasSupabaseEnv } from "@/lib/env";
 
-type SheetPayload = { id?: string; name?: string; columns?: string[]; rows?: Array<Record<string, string>>; assigned_sales_ids?: string[] };
+type SheetPayload = { id?: string; name?: string; columns?: string[]; rows?: Array<Record<string, string>>; assigned_sales_ids?: string[]; updated_at?: string };
 
 export async function GET() {
-  const { supabase, user, profile } = await getCurrentUser(["admin", "sales", "reception"]);
-  let query = supabase.from("manual_sheets").select("id,name,columns,rows,owner_id,assigned_sales_ids,created_at,updated_at").order("updated_at", { ascending: false });
-  if (profile.role === "sales" && hasSupabaseEnv()) query = query.or(`owner_id.eq.${user.id},assigned_sales_ids.cs.{"${user.id}"}`);
-  const result = await query;
+  const auth = await requireApiUser(["admin", "sales", "reception"]);
+  if (!auth.ok) return auth.response;
+  const { supabase, profile } = auth;
+  // RLS already limits which sheets a sales user can read; only the demo store needs the filter.
+  const result = await supabase.from("manual_sheets").select("id,name,columns,rows,owner_id,assigned_sales_ids,created_at,updated_at").order("updated_at", { ascending: false });
   const data = profile.role === "sales" && !hasSupabaseEnv()
-    ? (result.data ?? []).filter((sheet: { owner_id?: string; assigned_sales_ids?: string[] }) => sheet.owner_id === user.id || (sheet.assigned_sales_ids ?? []).includes(user.id))
+    ? (result.data ?? []).filter((sheet: { owner_id?: string; assigned_sales_ids?: string[] }) => sheet.owner_id === profile.id || (sheet.assigned_sales_ids ?? []).includes(profile.id))
     : result.data;
   const error = result.error;
   if (error && error.message.includes("manual_sheets")) return NextResponse.json({ sheets: [], unavailable: true });
@@ -19,39 +20,53 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { supabase, user, profile } = await getCurrentUser(["admin", "sales"]);
-  const body = await request.json() as SheetPayload;
+  const auth = await requireApiUser(["admin", "sales"]);
+  if (!auth.ok) return auth.response;
+  const { supabase, profile } = auth;
+  const body = await request.json().catch(() => ({})) as SheetPayload;
   if (!body.id || !body.name || !Array.isArray(body.columns) || !Array.isArray(body.rows)) {
     return NextResponse.json({ error: "Invalid sheet" }, { status: 400 });
   }
-  let assignedSalesIds = Array.isArray(body.assigned_sales_ids) ? body.assigned_sales_ids.filter(Boolean) : [];
-  let ownerId = user.id;
-  if (body.id) {
-    const { data: existing } = await supabase.from("manual_sheets").select("owner_id,assigned_sales_ids").eq("id", body.id).single();
-    ownerId = existing?.owner_id ?? user.id;
-    if (profile.role !== "admin") assignedSalesIds = Array.isArray(existing?.assigned_sales_ids) ? existing.assigned_sales_ids : [];
+  const conflict = NextResponse.json({ error: "This sheet was changed by someone else. Reload to get the latest version.", conflict: true }, { status: 409 });
+  const { data: existing, error: lookupError } = await supabase.from("manual_sheets").select("owner_id,name,assigned_sales_ids,updated_at").eq("id", body.id).maybeSingle();
+  if (lookupError && lookupError.message.includes("manual_sheets")) return NextResponse.json({ error: "Cloud manual sheets are not configured yet." }, { status: 503 });
+  if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 });
+
+  const updatedAt = new Date().toISOString();
+  const requested = Array.isArray(body.assigned_sales_ids) ? body.assigned_sales_ids.filter(Boolean) : [];
+  if (!existing) {
+    const { error } = await supabase.from("manual_sheets").insert({ id: body.id, owner_id: profile.id, name: body.name, columns: body.columns, rows: body.rows, assigned_sales_ids: requested, updated_at: updatedAt });
+    if (error && error.message.includes("manual_sheets")) return NextResponse.json({ error: "Cloud manual sheets are not configured yet." }, { status: 503 });
+    if (error && /duplicate key|already exists/i.test(error.message)) return conflict;
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, updated_at: updatedAt });
   }
-  const { error } = await supabase.from("manual_sheets").upsert({
-    id: body.id,
-    owner_id: ownerId,
-    name: body.name,
+
+  // Reject saves based on a copy older than what is stored.
+  if (body.updated_at && existing.updated_at && new Date(existing.updated_at).getTime() > new Date(body.updated_at).getTime()) return conflict;
+  const canManage = profile.role === "admin" || existing.owner_id === profile.id;
+  let update = supabase.from("manual_sheets").update({
+    name: canManage ? body.name : existing.name,
     columns: body.columns,
     rows: body.rows,
-    assigned_sales_ids: assignedSalesIds,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: "id" });
+    assigned_sales_ids: canManage ? requested : Array.isArray(existing.assigned_sales_ids) ? existing.assigned_sales_ids : [],
+    updated_at: updatedAt,
+  }).eq("id", body.id);
+  if (existing.updated_at) update = update.eq("updated_at", existing.updated_at);
+  const { data: saved, error } = await update.select("id");
   if (error && error.message.includes("manual_sheets")) return NextResponse.json({ error: "Cloud manual sheets are not configured yet." }, { status: 503 });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  if (!saved?.length) return conflict;
+  return NextResponse.json({ ok: true, updated_at: updatedAt });
 }
 
 export async function DELETE(request: Request) {
-  const { supabase } = await getCurrentUser(["admin"]);
-  const body = await request.json() as { id?: string };
+  const auth = await requireApiUser(["admin"]);
+  if (!auth.ok) return auth.response;
+  const body = await request.json().catch(() => ({})) as { id?: string };
   if (!body.id) return NextResponse.json({ error: "Sheet id is required" }, { status: 400 });
 
-  let query = supabase.from("manual_sheets").delete().eq("id", body.id);
-  const { error } = await query;
+  const { error } = await auth.supabase.from("manual_sheets").delete().eq("id", body.id);
   if (error && error.message.includes("manual_sheets")) return NextResponse.json({ error: "Cloud manual sheets are not configured yet." }, { status: 503 });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });

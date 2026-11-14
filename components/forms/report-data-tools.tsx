@@ -74,6 +74,16 @@ export function ReportDataTools({ reportData }: { reportData: ReportData }) {
     }
   }
 
+  async function restoreLiveData() {
+    const next = { ...snapshot };
+    delete next[section];
+    window.localStorage.setItem(storageKey, JSON.stringify(next));
+    setSnapshot(next);
+    await fetch("/api/report-snapshots", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ section }) }).catch(() => undefined);
+    setError(false);
+    setMessage(`${sectionNames[section]} now exports live data`);
+  }
+
   return (
     <Card>
       <CardHeader><CardTitle>Report import and export</CardTitle></CardHeader>
@@ -90,7 +100,7 @@ export function ReportDataTools({ reportData }: { reportData: ReportData }) {
           <Button type="button" variant="secondary" onClick={() => Object.keys(sectionNames).forEach((name) => exportSection(name as ReportSection))}><Upload size={16} /> Export all reports</Button>
         </div>
         {message && <p role="status" className={`mt-3 text-sm ${error ? "text-red-700" : "text-green-700"}`}>{message}</p>}
-        {snapshot[section] && <p className="mt-2 text-xs text-muted-foreground">A locally saved imported snapshot is being used for this section’s export. Live operational records remain unchanged.</p>}
+        {snapshot[section] && <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900"><span>Exports of this section use an imported file, not live data. Live operational records remain unchanged.</span><Button type="button" size="sm" variant="outline" onClick={() => void restoreLiveData()}>Use live data again</Button></div>}
       </CardContent>
     </Card>
   );

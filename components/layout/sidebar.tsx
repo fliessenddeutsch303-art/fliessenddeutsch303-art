@@ -1,7 +1,6 @@
-import { LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { LanguageToggle } from "@/components/layout/language-toggle";
 import { Logo } from "@/components/layout/logo";
+import { SignOutForm } from "@/components/layout/offline-sync-banner";
 import { ReminderNotifier } from "@/components/layout/reminder-notifier";
 import { PersistentNavGroup } from "@/components/layout/persistent-nav-group";
 import { ActiveNavLink } from "@/components/layout/active-nav-link";
@@ -18,19 +17,26 @@ const nav: Record<string, Array<NavItem & { labelKey: keyof typeof dictionaries.
     { href: "/admin/exams", label: "Student Follow Up", labelKey: "exams" },
     { href: "/admin/teacher-follow-up", label: "Teacher Student Follow Up", labelKey: "teacherFollowUp" },
     { href: "/admin/exams-management", label: "Exams", labelKey: "examManagement" },
+    { href: "/admin/feedback", label: "Feedback", labelKey: "feedback" },
     { href: "/admin/textbooks", label: "Textbook inventory", labelKey: "textbookInventory" },
     { href: "/admin/hr/attendance", label: "HR", labelKey: "hr" },
     { href: "/admin/hr/performance", label: "HR Performance", labelKey: "performance" },
+    { href: "/admin/hr/payroll", label: "Payroll", labelKey: "payroll" },
+    { href: "/admin/hr/adjustments", label: "Bonuses & deductions", labelKey: "adjustments" },
+    { href: "/admin/users", label: "Employee profiles", labelKey: "users" },
     { href: "/admin/account-center", label: "Account Center", labelKey: "accountCenter" },
+    { href: "/admin/links", label: "Links & QR", labelKey: "links" },
     { href: "/admin/logs", label: "Logs", labelKey: "logs" },
     { href: "/admin/sales", label: "Sales", labelKey: "sales" },
     { href: "/admin/sales/lists", label: "Manual lists", labelKey: "manualLists" },
+    { href: "/admin/sales/files", label: "Lead files", labelKey: "leadFiles" },
     { href: "/admin/treasury", label: "Treasury", labelKey: "treasury" },
     { href: "/admin/reports", label: "Reports", labelKey: "reports" },
     { href: "/admin/branches", label: "Branches", labelKey: "branches" },
   ],
   reception: [
     { href: "/reception/attendance/students", label: "Student Attendance", labelKey: "studentAttendance" },
+    { href: "/reception/attendance", label: "Employees Check In", labelKey: "hr" },
     { href: "/reception/students", label: "Students", labelKey: "students" },
     { href: "/reception/sales/lists", label: "Sales sheets", labelKey: "manualLists" },
     { href: "/reception/treasury", label: "Treasury Entry", labelKey: "treasury" },
@@ -41,6 +47,8 @@ const nav: Record<string, Array<NavItem & { labelKey: keyof typeof dictionaries.
     { href: "/sales/files", label: "Files", labelKey: "files" },
   ],
   teacher: [
+    { href: "/teacher/attendance", label: "My Attendance", labelKey: "myAttendance" },
+    { href: "/teacher/classes", label: "My Classes", labelKey: "myClasses" },
     { href: "/teacher/follow-up", label: "Teacher Student Follow Up", labelKey: "teacherFollowUp" },
   ],
 };
@@ -51,27 +59,23 @@ export function AppShell({ profile, children, lang }: { profile: UserProfile; ch
   const visibleNav = nav[profile.role] ?? nav.admin;
   const uniqueNav = visibleNav.filter((item, index, items) => items.findIndex((candidate) => candidate.href === item.href) === index);
   const adminGroups = [
-    { label: t.nav.studentsGroup, items: uniqueNav.filter((item) => ["/admin/students", "/admin/classes", "/admin/student-attendance", "/admin/exams", "/admin/teacher-follow-up", "/admin/exams-management"].includes(item.href)) },
-    { label: t.nav.staffGroup, items: uniqueNav.filter((item) => item.href.startsWith("/admin/hr")) },
+    { label: t.nav.studentsGroup, items: uniqueNav.filter((item) => ["/admin/students", "/admin/classes", "/admin/student-attendance", "/admin/exams", "/admin/teacher-follow-up", "/admin/exams-management", "/admin/feedback"].includes(item.href)) },
+    { label: t.nav.staffGroup, items: uniqueNav.filter((item) => item.href.startsWith("/admin/hr") || item.href === "/admin/users") },
     { label: t.nav.salesGroup, items: uniqueNav.filter((item) => item.href.includes("sales") || item.href.includes("/sales/")) },
     { label: t.nav.financeGroup, items: uniqueNav.filter((item) => ["/admin/treasury", "/admin/reports", "/admin/textbooks"].includes(item.href)) },
-    { label: t.nav.systemGroup, items: uniqueNav.filter((item) => !["/admin/students", "/admin/classes", "/admin/student-attendance", "/admin/exams", "/admin/teacher-follow-up", "/admin/exams-management", "/admin/treasury", "/admin/reports", "/admin/textbooks"].includes(item.href) && !item.href.startsWith("/admin/hr") && !item.href.includes("sales") && !item.href.includes("/sales/") && !item.href.startsWith("/teacher/") && !item.href.startsWith("/reception/")) },
+    { label: t.nav.systemGroup, items: uniqueNav.filter((item) => !["/admin/students", "/admin/classes", "/admin/student-attendance", "/admin/exams", "/admin/teacher-follow-up", "/admin/exams-management", "/admin/feedback", "/admin/treasury", "/admin/reports", "/admin/textbooks"].includes(item.href) && !item.href.startsWith("/admin/hr") && item.href !== "/admin/users" && !item.href.includes("sales") && !item.href.includes("/sales/") && !item.href.startsWith("/teacher/") && !item.href.startsWith("/reception/")) },
   ].filter((group) => group.items.length);
   const navGroups = profile.role === "admin" ? adminGroups : [{ label: "", items: uniqueNav }];
   return (
     <div className="min-h-screen bg-[#FCFAF6]">
-      <aside className={`fixed inset-y-0 hidden w-64 bg-white p-5 md:block ${isRtl ? "right-0 border-l" : "left-0 border-r"}`}>
+      <aside className={`sidebar-scroll fixed inset-y-0 hidden w-64 bg-white p-5 md:block ${isRtl ? "right-0 border-l" : "left-0 border-r"}`}>
         <div className="flex items-center gap-3 font-semibold text-primary">
           <Logo className="h-12 w-auto object-contain" />
         </div>
         <nav className="mt-8 grid gap-4" aria-label={t.academySystem}>
           {navGroups.map((group) => group.label ? <PersistentNavGroup key={group.label} groupKey={`group-${group.items[0]?.href}`} label={group.label} rtl={isRtl} items={group.items.map((item) => ({ href: item.href, label: t.nav[item.labelKey] }))} /> : group.items.map((item) => <ActiveNavLink key={item.href} href={item.href} label={t.nav[item.labelKey]} rtl={isRtl} />))}
         </nav>
-        <form action="/api/auth/signout" className="absolute bottom-5 left-5 right-5">
-          <Button className="w-full" variant="outline">
-            <LogOut size={16} /> {t.signOut}
-          </Button>
-        </form>
+        <SignOutForm label={t.signOut} className="w-full" wrapperClassName="absolute bottom-5 left-5 right-5" />
       </aside>
       <main className={`min-w-0 ${isRtl ? "md:pr-64" : "md:pl-64"}`}>
         <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-3 border-b bg-white/95 px-3 backdrop-blur sm:px-4 md:px-8">
@@ -87,9 +91,7 @@ export function AppShell({ profile, children, lang }: { profile: UserProfile; ch
             <nav className="mt-2 grid gap-3" aria-label={t.academySystem}>
               {navGroups.map((group) => group.label ? <PersistentNavGroup key={group.label} groupKey={`group-${group.items[0]?.href}`} label={group.label} mobile items={group.items.map((item) => ({ href: item.href, label: t.nav[item.labelKey] }))} /> : group.items.map((item) => <ActiveNavLink key={item.href} href={item.href} label={t.nav[item.labelKey]} mobile />))}
             </nav>
-            <form action="/api/auth/signout" className="mt-2">
-              <Button className="w-full" variant="outline"><LogOut size={16} /> {t.signOut}</Button>
-            </form>
+            <SignOutForm label={t.signOut} className="w-full" wrapperClassName="mt-2" />
           </details>
         </div>
         <div className="min-w-0 p-3 sm:p-4 md:p-8">{children}</div>

@@ -33,6 +33,16 @@ select {
   min-height: 56px;
 }
 
+.sidebar-scroll {
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 [dir="rtl"] input,
 [dir="rtl"] textarea,
 [dir="rtl"] select {

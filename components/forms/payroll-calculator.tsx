@@ -7,16 +7,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { exportExcel } from "@/lib/excel";
 import { formatMoney } from "@/lib/utils";
+import { academyDate, academyMonthStart } from "@/lib/dates";
 
-type PayrollRow = { employee: string; role: string; payType: string; hours: number; sessions: number; basePay: number; bonuses: number; deductions: number; net: number };
+type PayrollRow = { id?: string; kind?: string; notes?: string[]; employee: string; role: string; payType: string; hours: number; sessions: number; basePay: number; bonuses: number; deductions: number; net: number };
 
 export function PayrollCalculator() {
-  const [start, setStart] = useState(new Date().toISOString().slice(0, 10));
-  const [end, setEnd] = useState(new Date().toISOString().slice(0, 10));
+  const [start, setStart] = useState(academyMonthStart());
+  const [end, setEnd] = useState(academyDate());
   const [rows, setRows] = useState<PayrollRow[]>([]);
+  const [error, setError] = useState("");
   async function calculate() {
+    if (start > end) return setError("The start date must be before the end date.");
     const response = await fetch(`/api/payroll?start=${start}&end=${end}`);
-    setRows(await response.json());
+    const json = await response.json().catch(() => null);
+    if (!response.ok || !Array.isArray(json)) {
+      setRows([]);
+      return setError(json?.error ?? "Payroll could not be calculated.");
+    }
+    setError("");
+    setRows(json);
   }
   function copy() {
     navigator.clipboard.writeText(rows.map((row) => `${row.employee}\t${row.role}\t${row.payType}\t${row.hours}\t${row.sessions}\t${row.basePay}\t${row.bonuses}\t${row.deductions}\t${row.net}`).join("\n"));
@@ -52,9 +61,11 @@ export function PayrollCalculator() {
           <Button variant="outline" onClick={copy}><Clipboard size={16} /> Copy Table</Button>
           <Button variant="outline" onClick={exportPayroll} disabled={!rows.length}><Upload size={16} /> Export Excel</Button>
         </div>
+        {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+        <p className="text-xs text-muted-foreground">Fixed and monthly salaries are paid in full for any period; choose a full month for monthly payroll.</p>
         <table className="w-full rounded-lg border text-sm">
-          <thead className="bg-muted"><tr><th className="p-3 text-left">Employee</th><th>Role</th><th>Pay type</th><th>Hours</th><th>Sessions</th><th>Base Pay</th><th>Bonuses</th><th>Deductions</th><th>NET PAYABLE</th></tr></thead>
-          <tbody>{rows.map((row) => <tr key={`${row.role}-${row.employee}`} className="border-t"><td className="p-3">{row.employee}</td><td>{row.role}</td><td>{row.payType}</td><td>{row.hours.toFixed(2)}</td><td>{row.sessions}</td><td>{formatMoney(row.basePay)}</td><td>{formatMoney(row.bonuses)}</td><td>{formatMoney(row.deductions)}</td><td className="font-semibold">{formatMoney(row.net)}</td></tr>)}</tbody>
+          <thead className="bg-muted"><tr><th className="p-3 text-left">Employee</th><th>Role</th><th>Pay type</th><th>Hours</th><th>Sessions</th><th>Base Pay</th><th>Bonuses</th><th>Deductions</th><th>NET PAYABLE</th><th className="text-left">Notes</th></tr></thead>
+          <tbody>{rows.map((row, index) => <tr key={`${row.kind ?? row.role}-${row.id ?? index}`} className="border-t"><td className="p-3">{row.employee}</td><td>{row.role}</td><td>{row.payType}</td><td>{row.hours.toFixed(2)}</td><td>{row.sessions}</td><td>{formatMoney(row.basePay)}</td><td>{formatMoney(row.bonuses)}</td><td>{formatMoney(row.deductions)}</td><td className="font-semibold">{formatMoney(row.net)}</td><td className="p-2 text-xs text-muted-foreground">{(row.notes ?? []).map((note, noteIndex) => <p key={`${noteIndex}-${note}`}>{note}</p>)}</td></tr>)}</tbody>
         </table>
       </CardContent>
     </Card>

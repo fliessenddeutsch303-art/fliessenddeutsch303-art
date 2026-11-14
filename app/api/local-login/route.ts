@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { hasSupabaseEnv } from "@/lib/env";
 import { createLocalSupabaseClient } from "@/lib/local-db";
 import { hashLocalPassword } from "@/lib/local-auth";
 
 export async function POST(request: Request) {
+  if (hasSupabaseEnv()) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const body = await request.json() as { email?: string; password?: string };
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");

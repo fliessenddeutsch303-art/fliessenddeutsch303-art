@@ -11,8 +11,9 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Lang } from "@/lib/i18n";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, escapeHtml } from "@/lib/utils";
 import { exportExcel } from "@/lib/excel";
+import { academyDate } from "@/lib/dates";
 
 type StudentFollowUp = {
   id: string;
@@ -70,7 +71,8 @@ function attendanceInfo(student: StudentFollowUp) {
   const absent = student.attendance.filter((item) => item.status === "absent").length;
   const excused = student.attendance.filter((item) => item.status === "excused").length;
   const total = student.attendance.length;
-  const rate = total ? Math.round((present / total) * 100) : null;
+  const counted = total - excused;
+  const rate = counted > 0 ? Math.round((present / counted) * 100) : null;
   const status = rate === null ? "no_records" : rate >= 75 ? "regular" : rate >= 50 ? "at_risk" : "skipping";
   return { present, absent, excused, total, rate, status };
 }
@@ -135,10 +137,10 @@ function StudentOverlay({ student, lang, onClose }: { student: StudentFollowUp; 
       </div>
       <div className="mt-3 grid gap-2">
         <p><span className="font-semibold">{labels.paymentCommentLabel}:</span> {student.payment_comment || labels.none}</p>
-        <p><span className="font-semibold">{labels.accountNotes}:</span> {student.account_notes.slice(0, 2).join(" | ") || labels.none}</p>
+        <p><span className="font-semibold">{labels.accountNotes}:</span> {student.account_notes.slice(0, 2).join(" | ") || labels.none}{student.account_notes.length > 2 && <span className="ml-1 text-muted-foreground">+{student.account_notes.length - 2} {lang === "ar" ? "أخرى" : "more"}</span>}</p>
         <p><span className="font-semibold">{labels.latestExam}:</span> {latestExam ? `${latestExam.type} · ${latestExam.level} · ${latestExam.score} · ${latestExam.comment}` : labels.none}</p>
         <p><span className="font-semibold">{labels.latestFeedback}:</span> {latestFeedback ? `${latestFeedback.source} ${latestFeedback.rating ? `(${latestFeedback.rating}/5)` : ""}: ${latestFeedback.comment}` : labels.none}</p>
-        <p><span className="font-semibold">{labels.attendance}:</span> {attendance.rate === null ? labels.noRecords : `${attendance.rate}% · ${attendance.present}/${attendance.total} (${attendance.absent} absent)`}</p>
+        <p><span className="font-semibold">{labels.attendance}:</span> {attendance.rate === null ? labels.noRecords : `${attendance.rate}% · ${attendance.present}/${attendance.total - attendance.excused} (${attendance.absent} absent${attendance.excused ? `, ${attendance.excused} excused` : ""})`}</p>
         <p><span className="font-semibold">{labels.latestAttendance}:</span> {latestAttendance ? `${latestAttendance.date} · ${displayValue(latestAttendance.status, lang)}` : labels.none}</p>
         <p><span className="font-semibold">{labels.workerComment}:</span> {latestWorkerComment ? `${latestWorkerComment.worker} (${latestWorkerComment.role}): ${latestWorkerComment.comment}` : labels.none}</p>
       </div>
@@ -243,7 +245,7 @@ export function StudentFollowUpManager({
   }
 
   function printPromotionCandidates() {
-    const rows = promotionExportRows.map((student) => `<tr><td>${student.full_name}</td><td>${student.phone}</td><td>${student.level ?? ""}</td><td>${student.next_level ?? ""}</td><td>${student.class_name ?? ""}</td><td>${student.teacher_name ?? ""}</td><td>${student.exams[0]?.score ?? ""}</td></tr>`).join("");
+    const rows = promotionExportRows.map((student) => `<tr><td>${escapeHtml(student.full_name)}</td><td>${escapeHtml(student.phone)}</td><td>${escapeHtml(student.level ?? "")}</td><td>${escapeHtml(student.next_level ?? "")}</td><td>${escapeHtml(student.class_name ?? "")}</td><td>${escapeHtml(student.teacher_name ?? "")}</td><td>${escapeHtml(student.exams[0]?.score ?? "")}</td></tr>`).join("");
     const win = window.open("", "_blank", "width=1000,height=700");
     if (!win) return;
     win.document.write(`<html><head><title>Promotion candidates</title><style>body{font-family:Arial;padding:24px}table{border-collapse:collapse;width:100%;margin-top:18px}th,td{border:1px solid #ccc;padding:9px;text-align:left}th{background:#1B4332;color:#fff}</style></head><body><h1>Promotion candidates (${promotionExportRows.length})</h1><table><thead><tr><th>Name</th><th>Phone</th><th>Current level</th><th>Next level</th><th>Class</th><th>Teacher</th><th>Score</th></tr></thead><tbody>${rows}</tbody></table><script>window.print();</script></body></html>`);
@@ -320,7 +322,7 @@ export function StudentFollowUpManager({
       source: "teacher",
       rating,
       comment,
-      date: new Date().toISOString().slice(0, 10),
+      date: academyDate(),
     };
     setStudents((rows) => rows.map((row) => {
       if (row.id !== commenting.id) return row;
@@ -479,7 +481,7 @@ export function StudentFollowUpManager({
                   {isTeacherMode ? (
                     <>
                       <td className="min-w-[120px] px-4 py-3">{displayValue(student.learning_mode, lang)}</td>
-                      <td className="min-w-[220px] px-4 py-3">{attendance.rate === null ? labels.noRecords : `${attendance.rate}% · ${labels.presentCount}: ${attendance.present} · ${labels.skippedCount}: ${attendance.absent}`}</td>
+                      <td className="min-w-[220px] px-4 py-3">{attendance.rate === null ? labels.noRecords : `${attendance.rate}% · ${labels.presentCount}: ${attendance.present} · ${labels.skippedCount}: ${attendance.absent}${attendance.excused ? ` · ${lang === "ar" ? "بعذر" : "Excused"}: ${attendance.excused}` : ""}`}</td>
                       <td className={`min-w-[125px] px-4 py-3 font-semibold ${presence.text}`}><span className={`mr-2 inline-block h-3 w-3 rounded-full ${presence.dot}`} aria-hidden="true" />{presenceLabel}</td>
                       <td className="min-w-[260px] whitespace-normal px-4 py-3">{latestFeedback?.comment ?? ""}</td>
                     </>
@@ -487,7 +489,7 @@ export function StudentFollowUpManager({
                     <>
                       <td className="min-w-[140px] px-4 py-3">{student.teacher_name}</td>
                       <td className="min-w-[120px] px-4 py-3">{displayValue(student.learning_mode, lang)}</td>
-                      <td className="min-w-[220px] px-4 py-3">{attendance.rate === null ? labels.noRecords : `${attendance.rate}% · ${labels.presentCount}: ${attendance.present} · ${labels.skippedCount}: ${attendance.absent}`}</td>
+                      <td className="min-w-[220px] px-4 py-3">{attendance.rate === null ? labels.noRecords : `${attendance.rate}% · ${labels.presentCount}: ${attendance.present} · ${labels.skippedCount}: ${attendance.absent}${attendance.excused ? ` · ${lang === "ar" ? "بعذر" : "Excused"}: ${attendance.excused}` : ""}`}</td>
                       <td className={`min-w-[125px] px-4 py-3 font-semibold ${presence.text}`}><span className={`mr-2 inline-block h-3 w-3 rounded-full ${presence.dot}`} aria-hidden="true" />{presenceLabel}</td>
                       <td className="min-w-[120px] px-4 py-3">{formatMoney(Number(student.amount_paid ?? 0))}</td>
                       <td className="min-w-[120px] px-4 py-3">{formatMoney(balance(student))}</td>
