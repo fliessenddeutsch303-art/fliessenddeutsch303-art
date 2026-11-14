@@ -44,6 +44,8 @@ type StudentRow = {
   payments?: StudentPayment[];
 };
 
+const datedTotal = (student: StudentRow) => (student.payments ?? []).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+
 const blank = {
   full_name: "",
   phone: "",
@@ -62,6 +64,7 @@ const blank = {
   freeze_end_date: "",
   level_completed_stopped: "false",
   paid_on: "",
+  earlier_paid_on: "",
 };
 
 export function StudentManager({ initialStudents, classes, canViewProfile = true, textbooks = [] }: { initialStudents: StudentRow[]; classes: ClassOption[]; canViewProfile?: boolean; textbooks?: TextbookOption[] }) {
@@ -139,6 +142,7 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
       freeze_end_date: student.freeze_end_date ?? "",
       level_completed_stopped: String(Boolean(student.level_completed_stopped)),
       paid_on: academyDate(),
+      earlier_paid_on: "",
     });
     setSaved("");
     setInvalidFields([]);
@@ -188,38 +192,49 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
       level_completed_stopped: form.level_completed_stopped === "true",
     };
     // a higher amount_paid is a new payment, record it with its date
-    const paidIncrease = Math.round((payload.amount_paid - Number(editing?.amount_paid ?? 0)) * 100) / 100;
+    const round = (value: number) => Math.round(value * 100) / 100;
+    const paidIncrease = round(payload.amount_paid - Number(editing?.amount_paid ?? 0));
     const paidOn = form.paid_on || academyDate();
-    if (paidIncrease > 0 && paidOn > academyDate()) {
+    // money paid before dates were tracked, can be dated now
+    const undatedEarlier = editing ? round(Math.min(Number(editing.amount_paid ?? 0), payload.amount_paid) - datedTotal(editing)) : 0;
+    const entries = [
+      ...(paidIncrease > 0 ? [{ amount: paidIncrease, date: paidOn }] : []),
+      ...(undatedEarlier > 0 && form.earlier_paid_on ? [{ amount: undatedEarlier, date: form.earlier_paid_on }] : []),
+    ];
+    if (entries.some((entry) => entry.date > academyDate())) {
       setSaved("The payment date cannot be in the future.");
       return;
     }
     const supabase = createSupabaseBrowserClient();
-    const recordPayment = async (studentId: string) => {
-      if (paidIncrease <= 0) return { payment: null as StudentPayment | null, warning: "" };
-      const { data, error } = await supabase.from("student_account_records").insert({
+    const recordPayments = async (studentId: string) => {
+      if (!entries.length) return { added: [] as StudentPayment[], warning: "" };
+      const stamp = Date.now();
+      const { data, error } = await supabase.from("student_account_records").insert(entries.map((entry, index) => ({
         student_id: studentId,
         class_id: payload.class_id,
-        amount: paidIncrease,
+        amount: entry.amount,
         status: "paid",
-        paid_at: `${paidOn}T12:00:00Z`,
+        paid_at: `${entry.date}T12:00:00Z`,
         notes: "Recorded from the student form",
-        receipt_no: `FD-${Date.now()}`,
-      }).select("id,amount,paid_at,receipt_no").single();
-      if (error || !data) return { payment: null, warning: ` The paid total was saved, but the payment date was not recorded: ${error?.message ?? "unknown error"}` };
-      return { payment: { id: data.id, amount: Number(data.amount), paid_at: paidOn, receipt_no: data.receipt_no ?? null }, warning: "" };
+        receipt_no: `FD-${stamp}${index ? `-${index}` : ""}`,
+      }))).select("id,amount,paid_at,receipt_no");
+      if (error || !data) return { added: [], warning: ` The paid total was saved, but the payment date was not recorded: ${error?.message ?? "unknown error"}` };
+      return { added: data.map((row, index) => ({ id: row.id, amount: Number(row.amount), paid_at: entries[index]?.date ?? academyDate(), receipt_no: row.receipt_no ?? null })), warning: "" };
     };
+    const savedNote = (added: StudentPayment[]) => added.map((payment) => ` · ${payment.amount} recorded as paid on ${payment.paid_at}`).join("");
     if (editing) {
       const { error } = await supabase.from("students").update(payload).eq("id", editing.id);
       if (error) {
         setSaved(error.message);
         return;
       }
-      const { payment, warning } = await recordPayment(editing.id);
-      setStudents((rows) => rows.map((row) => row.id === editing.id ? { ...row, ...payload, payments: payment ? [payment, ...(row.payments ?? [])] : row.payments, classes: !payload.class_id ? null : loadedClass ?? (payload.class_id === row.class_id ? row.classes : classes.find((klass) => klass.id === payload.class_id)) ?? null } : row));
+      const { added, warning } = await recordPayments(editing.id);
+      const payments = [...added, ...(editing.payments ?? [])].sort((a, b) => b.paid_at.localeCompare(a.paid_at));
+      setStudents((rows) => rows.map((row) => row.id === editing.id ? { ...row, ...payload, payments, classes: !payload.class_id ? null : loadedClass ?? (payload.class_id === row.class_id ? row.classes : classes.find((klass) => klass.id === payload.class_id)) ?? null } : row));
       void recordAudit("updated", "student", editing.id, { fields: Object.keys(payload), full_name: payload.full_name });
-      setEditing((current) => current ? { ...current, amount_paid: payload.amount_paid } : current);
-      setSaved(`Student updated${payment ? ` · payment of ${paidIncrease} recorded on ${paidOn}` : ""}.${warning}`);
+      setEditing((current) => current ? { ...current, amount_paid: payload.amount_paid, payments } : current);
+      setForm((current) => ({ ...current, earlier_paid_on: "" }));
+      setSaved(`Student updated${savedNote(added)}.${warning}`);
       return;
     }
 
@@ -228,11 +243,11 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
       setSaved(error.message);
       return;
     }
-    const { payment, warning } = await recordPayment(data.id);
-    setStudents((rows) => [{ id: data.id, ...payload, payments: payment ? [payment] : [], enrolled_at: new Date().toISOString(), classes: loadedClass ?? classes.find((klass) => klass.id === payload.class_id) ?? null }, ...rows]);
+    const { added, warning } = await recordPayments(data.id);
+    setStudents((rows) => [{ id: data.id, ...payload, payments: added, enrolled_at: new Date().toISOString(), classes: loadedClass ?? classes.find((klass) => klass.id === payload.class_id) ?? null }, ...rows]);
     void recordAudit("created", "student", data.id, { fields: Object.keys(payload), full_name: payload.full_name });
     reset();
-    setSaved(`Student saved${payment ? ` · payment of ${paidIncrease} recorded on ${paidOn}` : ""}.${warning}`);
+    setSaved(`Student saved${savedNote(added)}.${warning}`);
   }
 
   const requiredClass = (field: string) => invalidFields.includes(field) ? "border-red-500 ring-1 ring-red-500" : "";
@@ -269,6 +284,7 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
             <label className="grid gap-1 text-sm"><span className="font-medium">Total price</span><Input type="number" min="0" step="0.01" value={form.total_price} onChange={(event) => setField("total_price", event.target.value)} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Amount paid</span><Input type="number" min="0" step="0.01" value={form.amount_paid} onChange={(event) => setField("amount_paid", event.target.value)} /></label>
             {Number(form.amount_paid || 0) > Number(editing?.amount_paid ?? 0) && <label className="grid gap-1 text-sm"><span className="font-medium">Paid on</span><Input type="date" max={academyDate()} value={form.paid_on || academyDate()} onChange={(event) => setField("paid_on", event.target.value)} /><span className="text-xs text-muted-foreground">The new amount ({Math.round((Number(form.amount_paid || 0) - Number(editing?.amount_paid ?? 0)) * 100) / 100}) is recorded as a payment on this date.</span></label>}
+            {editing && Math.round((Number(editing.amount_paid ?? 0) - datedTotal(editing)) * 100) / 100 > 0 && <label className="grid gap-1 text-sm"><span className="font-medium">Date of earlier payment</span><Input type="date" max={academyDate()} value={form.earlier_paid_on} onChange={(event) => setField("earlier_paid_on", event.target.value)} /><span className="text-xs text-muted-foreground">{Math.round((Number(editing.amount_paid ?? 0) - datedTotal(editing)) * 100) / 100} of the amount paid has no date yet. Optional.</span></label>}
             <label className="grid gap-1 text-sm"><span className="font-medium">Payment date arranged</span><Input type="date" value={form.payment_due_date} onChange={(event) => setField("payment_due_date", event.target.value)} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Freeze started</span><Input type="date" className={requiredClass("Freeze started")} value={form.freeze_start_date} onChange={(event) => setField("freeze_start_date", event.target.value)} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Freeze duration</span><Select value={form.freeze_months} onChange={(event) => setField("freeze_months", event.target.value)}><option value="0">No freeze</option><option value="1">1 month</option><option value="2">2 months</option><option value="3">3 months maximum</option></Select></label>

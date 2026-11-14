@@ -27,15 +27,15 @@ export function StudentAttendanceCell({ studentName, portalToken }: { studentNam
   }
 
   return (
-    <div className="flex min-w-40 items-center gap-2">
+    <div className="flex items-center gap-2 whitespace-nowrap">
       {qr ? <Image src={qr} alt="Student attendance QR" width={54} height={54} unoptimized /> : null}
-      <div className="grid gap-1">
-        {!qr && <Button type="button" size="sm" variant="outline" onClick={() => void showQr()}>Show QR</Button>}
+      <div className="flex items-center gap-2">
+        {!qr && <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => void showQr()}>Show QR</Button>}
         {qrError && <span className="text-xs text-red-700">QR failed</span>}
-        <Button asChild size="sm" variant="outline">
+        <Button asChild size="sm" variant="outline" className="h-8">
           <a href={path}>Check in</a>
         </Button>
-        <button type="button" className="text-left text-xs text-muted-foreground hover:text-primary" onClick={() => void navigator.clipboard.writeText(fullUrl())}>
+        <button type="button" className="text-xs text-muted-foreground hover:text-primary" onClick={() => void navigator.clipboard.writeText(fullUrl())}>
           Copy link
         </button>
       </div>

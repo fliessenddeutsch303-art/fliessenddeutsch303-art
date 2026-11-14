@@ -125,3 +125,21 @@ select {
   background-color: #fef3c7 !important;
   box-shadow: inset 0 0 0 2px #fbbf24;
 }
+
+/* floating-scrollbar.tsx, keep it visible even where scrollbars auto-hide */
+.floating-scrollbar {
+  height: 16px;
+  scrollbar-width: auto;
+  scrollbar-color: #9ca3af #f3f4f6;
+}
+.floating-scrollbar::-webkit-scrollbar {
+  height: 14px;
+}
+.floating-scrollbar::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+.floating-scrollbar::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 7px;
+  border: 3px solid #f3f4f6;
+}

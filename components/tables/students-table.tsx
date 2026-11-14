@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { BookOpen, CheckCircle2, Snowflake, Upload } from "lucide-react";
 import { StudentAttendanceCell } from "@/components/tables/student-attendance-cell";
-import { BookStatusBadge, StudentBooksDialog, bookSummary, type StudentBook, type TextbookOption } from "@/components/forms/student-books-dialog";
+import { StudentBooksDialog, bookSummary, type StudentBook, type TextbookOption } from "@/components/forms/student-books-dialog";
 import { matchRanges } from "@/lib/search-match";
 import type { StudentPayment } from "@/lib/student-payments";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +45,26 @@ function freezeStatus(row: Record<string, unknown>) {
   const end = String(row.freeze_end_date ?? "");
   if (!start || !end || Number(row.freeze_months ?? 0) === 0) return "none";
   return end < academyDate() ? "expired" : "active";
+}
+
+function PaidOn({ row }: { row: Record<string, unknown> }) {
+  const payments = paymentsOf(row);
+  const undated = Math.round((Number(row.amount_paid ?? 0) - payments.reduce((sum, payment) => sum + payment.amount, 0)) * 100) / 100;
+  const details = [...payments.map((payment) => `${payment.paid_at} · ${formatMoney(payment.amount)}`), ...(undated > 0 ? [`${formatMoney(undated)} without a date`] : [])].join("\n");
+  if (!payments.length) return undated > 0 ? <span className="text-xs text-muted-foreground" title={details}>No date</span> : null;
+  return <span title={details}>{payments[0].paid_at}{payments.length > 1 ? <span className="text-xs text-muted-foreground"> +{payments.length - 1}</span> : null}</span>;
+}
+
+function BooksSummary({ books }: { books: StudentBook[] }) {
+  if (!books.length) return null;
+  const today = academyDate();
+  const overdue = books.filter((book) => book.payment_status === "arranged" && (book.payment_due_date ?? "") < today).length;
+  const unpaid = books.filter((book) => book.payment_status === "unpaid").length;
+  const later = books.filter((book) => book.payment_status === "arranged" && (book.payment_due_date ?? "") >= today).length;
+  if (overdue) return <Badge className="border-brand-red bg-red-50 text-brand-red">{overdue} overdue</Badge>;
+  if (unpaid) return <Badge className="border-brand-red bg-red-50 text-brand-red">{unpaid} unpaid</Badge>;
+  if (later) return <Badge className="border-amber-200 bg-amber-50 text-amber-700">{later} pay later</Badge>;
+  return <Badge className="border-green-200 bg-green-50 text-green-700">Paid</Badge>;
 }
 
 type PromotionClass = { id: string; name: string; level?: string | null };
@@ -162,35 +182,35 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 md:grid-cols-[1fr_140px_160px_170px_170px_160px_160px_auto]">
-        <Input data-search placeholder="Name or phone..." aria-label="Search by name or phone" value={nameQuery} onChange={(event) => setNameQuery(event.target.value)} />
-        <Select value={levelFilter} onChange={(event) => setLevelFilter(event.target.value)} aria-label="Level filter">
+      <div className="flex flex-wrap items-center gap-3 [&>*]:w-auto">
+        <Input data-search className="min-w-[220px] flex-1" placeholder="Name or phone..." aria-label="Search by name or phone" value={nameQuery} onChange={(event) => setNameQuery(event.target.value)} />
+        <Select className="w-36" value={levelFilter} onChange={(event) => setLevelFilter(event.target.value)} aria-label="Level filter">
           <option value="">All levels</option>
           {levels.map((level) => <option key={level} value={level}>{level}</option>)}
         </Select>
-        <Select value={teacherFilter} onChange={(event) => setTeacherFilter(event.target.value)} aria-label="Teacher filter">
+        <Select className="w-40" value={teacherFilter} onChange={(event) => setTeacherFilter(event.target.value)} aria-label="Teacher filter">
           <option value="">All teachers</option>
           {teachers.map((teacher) => <option key={teacher} value={teacher}>{teacher}</option>)}
         </Select>
-        <Select value={classFilter} onChange={(event) => setClassFilter(event.target.value)} aria-label="Class name filter">
+        <Select className="w-40" value={classFilter} onChange={(event) => setClassFilter(event.target.value)} aria-label="Class name filter">
           <option value="">All classes</option>
           {classNames.map((name) => <option key={name} value={name}>{name}</option>)}
         </Select>
-        <Input data-search placeholder="Tag..." value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} aria-label="Tag filter" />
-        <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label="From date" />
-        <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label="To date" />
-        <Button type="button" variant="outline" onClick={exportStudents} disabled={!exportRows.length}>
+        <Input data-search className="w-40" placeholder="Tag..." value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} aria-label="Tag filter" />
+        <Input className="w-40" type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label="From date" />
+        <Input className="w-40" type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label="To date" />
+        <Button type="button" variant="outline" className="shrink-0" onClick={exportStudents} disabled={!exportRows.length}>
           <Upload size={16} />
           {selectedRows.length ? `Export Selected (${selectedRows.length})` : `Export Filtered (${visibleRows.length})`}
         </Button>
       </div>
 
       <div className="max-h-[70vh] overflow-auto rounded-lg border bg-white">
-        <table dir="rtl" className="w-full min-w-[1900px] text-right text-sm [&_th]:align-middle [&_td]:align-middle">
+        <table dir="rtl" className="w-full min-w-max text-right text-sm [&_th]:align-middle [&_th]:whitespace-nowrap [&_td]:align-middle [&_td]:whitespace-nowrap">
           <thead className="sticky top-0 z-10 bg-muted">
             <tr>
               <th className="px-4 py-3 text-center"><input type="checkbox" checked={visibleRows.length > 0 && visibleRows.every((row) => selected.has(String(row.id)))} onChange={toggleAll} /></th>
-              {["Name", "Phone", "Email", "Level", "Tags", "Class", "Teacher", "Online / Offline", "Price", "Paid", "Not Paid", "Payment Date", "Alert", "Books", "Freeze started", "Freeze finished", "Freeze status", "Finished / Stopped", "Comment", "Status", "Attendance", "Actions"].map((header) => (
+              {["Name", "Phone", "Email", "Level", "Tags", "Class", "Teacher", "Online / Offline", "Price", "Paid", "Paid on", "Not Paid", "Payment Date", "Alert", "Books", "Freeze started", "Freeze finished", "Freeze status", "Finished / Stopped", "Comment", "Status", "Attendance", "Actions"].map((header) => (
                 <th key={header} className="px-4 py-3 text-right font-semibold">{header}</th>
               ))}
             </tr>
@@ -205,35 +225,32 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
                   <td className="whitespace-nowrap px-4 py-3" dir="ltr">{String(row.phone ?? "")}</td>
                   <td className="min-w-[190px] whitespace-nowrap px-4 py-3">{String(row.email ?? "")}</td>
                   <td className="whitespace-nowrap px-4 py-3">{String(row.level ?? "")}</td>
-                  <td className="max-w-[180px] px-4 py-3 break-words">{tagsText(row)}</td>
+                  <td className="max-w-[200px] truncate px-4 py-3" title={tagsText(row) || undefined}>{tagsText(row)}</td>
                   <td className="px-4 py-3">
-                    <div className="flex min-w-[150px] flex-col items-start gap-2">
+                    <div className="flex items-center gap-2">
                       <span>{className(row)}</span>
-                      {onPromote && row.promotion_candidate === true && <Button type="button" size="sm" variant="outline" onClick={() => { setPromotingId(id); setPromotionClassId(""); setPromotionMessage(""); }}>Promote to next class</Button>}
+                      {onPromote && row.promotion_candidate === true && <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => { setPromotingId(id); setPromotionClassId(""); setPromotionMessage(""); }}>Promote to next class</Button>}
                     </div>
                   </td>
                   <td className="min-w-[120px] px-4 py-3">{teacherName(row)}</td>
                   <td className="whitespace-nowrap px-4 py-3">{row.learning_mode === "online" ? "Online" : "Offline"}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-center">{formatMoney(Number(row.total_price ?? 0))}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-center">
-                    <div>{formatMoney(Number(row.amount_paid ?? 0))}</div>
-                    {paymentsOf(row).slice(0, 3).map((payment) => <div key={payment.id} className="text-xs text-muted-foreground" title={payment.receipt_no ?? undefined}>{payment.paid_at} · {formatMoney(payment.amount)}</div>)}
-                    {paymentsOf(row).length > 3 && <div className="text-xs text-muted-foreground">+{paymentsOf(row).length - 3} more</div>}
-                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center">{formatMoney(Number(row.amount_paid ?? 0))}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center"><PaidOn row={row} /></td>
                   <td className="whitespace-nowrap px-4 py-3 text-center">{formatMoney(Math.max(0, Number(row.total_price ?? 0) - Number(row.amount_paid ?? 0)))}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-center">{String(row.payment_due_date ?? "")}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-center">{paymentStatus(row)}</td>
-                  <td className="min-w-[220px] px-4 py-3">
-                    <div className="flex flex-col items-start gap-1">
-                      {booksOf(row).map((book) => <span key={book.id} className="flex flex-wrap items-center gap-1 text-xs"><span className="font-medium">{book.title}</span><BookStatusBadge book={book} /></span>)}
-                      {onBooksChange && <Button type="button" size="sm" variant="outline" onClick={() => setBooksStudentId(id)}><BookOpen size={14} /> Books{booksOf(row).length ? ` (${booksOf(row).length})` : ""}</Button>}
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <div className="flex items-center gap-2" title={booksOf(row).map(bookSummary).join("\n") || undefined}>
+                      {onBooksChange ? <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setBooksStudentId(id)}><BookOpen size={14} /> Books{booksOf(row).length ? ` (${booksOf(row).length})` : ""}</Button> : booksOf(row).length ? <span>{booksOf(row).length}</span> : null}
+                      <BooksSummary books={booksOf(row)} />
                     </div>
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-center">{String(row.freeze_start_date ?? "")}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-center">{String(row.freeze_end_date ?? "")}</td>
                   <td className="px-4 py-3">{freezeStatus(row) === "active" ? <Badge className="border-blue-200 bg-blue-50 text-blue-700"><Snowflake size={15} /> Active</Badge> : freezeStatus(row) === "expired" ? <Badge className="border-red-200 bg-red-50 text-red-700">Expired</Badge> : ""}</td>
                   <td className="px-4 py-3">{row.level_completed_stopped ? <Badge className="border-yellow-200 bg-yellow-50 text-yellow-700"><CheckCircle2 size={15} /> Finished level</Badge> : ""}</td>
-                  <td className="px-4 py-3">{String(row.payment_comment ?? "")}</td>
+                  <td className="max-w-[240px] truncate px-4 py-3" title={String(row.payment_comment ?? "") || undefined}>{String(row.payment_comment ?? "")}</td>
                   <td className="px-4 py-3">{String(row.status ?? "")}</td>
                   <td className="px-4 py-3"><StudentAttendanceCell studentName={String(row.full_name ?? "")} portalToken={typeof row.portal_token === "string" ? row.portal_token : null} /></td>
                   <td className="px-4 py-3">
