@@ -128,7 +128,7 @@ export function AdjustmentForm({ targets }: { targets: AdjustmentTarget[] }) {
       setSaved("The period start must be before the period end.");
       return;
     }
-    // Payroll reads teacher_adjustments for teachers and employee_adjustments for everyone else.
+    // teachers use teacher_adjustments, everyone else employee_adjustments
     const { error: saveError } = target.kind === "teacher"
       ? await supabase.from("teacher_adjustments").insert({ teacher_id: target.id, ...common })
       : await supabase.from("employee_adjustments").insert({ user_id: target.kind === "profile" ? target.account_user_id : target.id, employee_profile_id: target.kind === "profile" ? target.id : null, ...common });

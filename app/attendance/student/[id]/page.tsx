@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-/** Recording happens on an explicit POST so link previews and prefetches cannot mark attendance. */
+// only a POST marks attendance, so link previews can't
 async function confirmAttendance(formData: FormData) {
   "use server";
   const token = extractPortalToken(String(formData.get("token") ?? ""));
@@ -18,7 +18,7 @@ async function confirmAttendance(formData: FormData) {
   const link = String(formData.get("link") ?? "");
   const { data: student } = await supabase.from("students").select("id,class_id").eq("portal_token", token).maybeSingle();
   if (!student?.class_id) redirect(`/attendance/student/${link}?error=1`);
-  // Never overwrite what reception recorded: only a missing or absent row becomes present.
+  // don't overwrite what reception set, only missing/absent becomes present
   const { data: existing, error: readError } = await supabase.from("student_attendance").select("status").eq("student_id", student.id).eq("class_id", student.class_id).eq("date", today).maybeSingle();
   if (readError) redirect(`/attendance/student/${link}?error=1`);
   if (!existing || existing.status === "absent") {

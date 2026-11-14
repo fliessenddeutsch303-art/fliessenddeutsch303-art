@@ -3,7 +3,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireApiUser } from "@/lib/api-auth";
 import { sendSecurityAlert } from "@/lib/notify";
 
-/** Per-session pay only applies to teachers; unknown values fall back to a monthly salary (same rule as /api/employees). */
+// per_session is for teachers only
 function payType(role: unknown, value: unknown) {
   const allowed = role === "teacher" ? ["monthly_salary", "monthly_wage", "hourly", "per_session"] : ["monthly_salary", "monthly_wage", "hourly"];
   return allowed.includes(String(value)) ? String(value) : "monthly_salary";
@@ -71,7 +71,7 @@ export async function DELETE(request: Request) {
     if (!profileId) throw new Error("Employee profile id is required.");
     const { data: profile, error: readError } = await admin.from("employee_profiles").select("*").eq("id", profileId).single();
     if (readError || !profile) throw new Error("Employee profile not found.");
-    // These tables cascade on delete: removing the profile would silently erase its payroll history.
+    // these cascade, deleting would wipe the payroll history
     const history = await Promise.all(["employee_attendance", "employee_adjustments", "employee_events"].map((table) => admin.from(table).select("id", { count: "exact", head: true }).eq("employee_profile_id", profileId)));
     const failed = history.find((result) => result.error);
     if (failed?.error) throw failed.error;

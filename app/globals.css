@@ -114,13 +114,13 @@ select {
   }
 }
 
-/* Matches of the text typed in a search or filter box (components/layout/search-highlighter.tsx). */
+/* search matches, see search-highlighter.tsx */
 ::highlight(fd-search) {
   background-color: #fde68a;
   color: inherit;
 }
 
-/* Editable cells whose value matches the search (text inside inputs cannot use ::highlight). */
+/* inputs can't use ::highlight, outline the cell instead */
 [data-search-hit] {
   background-color: #fef3c7 !important;
   box-shadow: inset 0 0 0 2px #fbbf24;

@@ -8,7 +8,7 @@ type AttendanceTable = "student_attendance" | "teacher_attendance" | "employee_a
 type QueueItem = { id: string; table: AttendanceTable; payload: Record<string, unknown>; timestamp: string; status: "pending" | "synced"; lastError?: string };
 const key = "fd_pending_sync";
 
-// Re-saving the same person/day must update the existing row, not fail on the unique key.
+// upsert so re-saving the same day doesn't hit the unique key
 const conflictTargets: Record<AttendanceTable, string> = {
   student_attendance: "student_id,class_id,date",
   teacher_attendance: "teacher_id,date",
@@ -36,7 +36,7 @@ function isNetworkError(message: string) {
 
 type SyncError = { message: string; code?: string; status?: number };
 
-/** Transient failures keep the record for a later retry; only genuine rejections drop it. */
+// keep transient failures for a retry
 function isTransient(error: SyncError) {
   const status = error.status ?? 0;
   if (isNetworkError(error.message)) return true;
@@ -54,14 +54,13 @@ export function pendingAttendanceCount() {
 type SyncResult = { synced: number; pending: number; failed: string[]; failedIds: string[] };
 let syncing: Promise<SyncResult> | null = null;
 
-/** Replays the attendance queue; safe to call from several places at once. */
 export function syncAttendanceQueue() {
   if (syncing) return syncing;
   syncing = (async () => {
     const items = readQueue().filter((item) => item.status === "pending");
     if (typeof navigator === "undefined" || !navigator.onLine || !items.length) return { synced: 0, pending: items.length, failed: [] as string[], failedIds: [] as string[] };
     const supabase = createSupabaseBrowserClient();
-    // Refresh the access token before replaying; a stored session may have expired while offline.
+    // the token may have expired while offline
     await supabase.auth.getSession().catch(() => null);
     const done = new Set<string>();
     const failures: string[] = [];

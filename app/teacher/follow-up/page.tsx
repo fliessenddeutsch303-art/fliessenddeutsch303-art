@@ -9,7 +9,7 @@ export default async function TeacherFollowUpPage() {
   const teachersResult = await supabase.from("teachers").select("id,name,user_id").order("name");
   const teacher = (teachersResult.data ?? []).find((item) => item.user_id === profile.id || item.user_id === user.id);
   if (!teacher) return <p className="rounded-md border bg-white p-6 text-sm text-muted-foreground">Your login is not linked to a teacher record yet. Ask the admin to open Account Center and save your account.</p>;
-  // Teachers get basic student data and comments only — no prices, payments or account notes.
+  // no prices or payments for teachers
   const [students, classes, teachers, exams, feedback, attendance] = await Promise.all([
     supabase.from("students").select("id,full_name,phone,email,level,tags,class_id,learning_mode,status,created_at").order("created_at", { ascending: false }),
     supabase.from("classes").select("id,name,teacher_id,level,learning_mode,schedule").eq("teacher_id", teacher.id),

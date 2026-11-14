@@ -33,7 +33,7 @@ function localDate(value: Date) {
 
 export async function readExcel(file: File): Promise<ExcelRow[]> {
   const buffer = await file.arrayBuffer();
-  // cellDates turns Excel date serials (e.g. 45962) into dates the database accepts.
+  // cellDates converts Excel date serials
   const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
@@ -70,5 +70,5 @@ export function exportExcel(filename: string, rows: ExcelRow[], sheetName = "She
   XLSX.writeFile(workbook, filename);
 }
 
-/** Excel stores unformatted phone numbers as numbers and drops the leading 0 of Egyptian mobiles. */
+// Excel drops the leading 0 of phone numbers stored as numbers
 export { normalizePhone } from "./phone";

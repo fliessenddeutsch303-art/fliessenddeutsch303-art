@@ -8,7 +8,7 @@ import { fetchAll } from "@/lib/supabase/fetch-all";
 
 const scheduleDays = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
-// The class form stores "Day HH:MM | Day HH:MM" with full English day names; returns null for anything else.
+// expects "Day HH:MM | Day HH:MM", returns null otherwise
 function parseSchedule(value: string) {
   const parts = value.split("|").map((part) => part.trim());
   const normalized: string[] = [];
@@ -60,7 +60,7 @@ export function ClassExcelTools({ rows, teachers, selectedCount = 0 }: { rows: C
         level: String(pick(row, ["level"]) ?? ""),
         current_chapter: String(pick(row, ["chapter", "current chapter", "kapitel", "current kapitel"]) ?? ""),
         learning_mode: String(pick(row, ["mode", "online/offline", "online / offline", "learning mode"]) ?? "offline").toLowerCase() === "online" ? "online" : "offline",
-        // Leave unmatched teachers empty instead of silently assigning the first teacher.
+        // leave unknown teachers empty rather than guessing
         teacher_id: teacher?.id ?? null,
         schedule: String(pick(row, ["schedule", "time", "days"]) ?? ""),
         capacity: asNumber(pick(row, ["capacity", "seats"])) || 1,

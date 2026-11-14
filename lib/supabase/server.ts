@@ -29,7 +29,7 @@ export function createSupabaseAdminClient(): SupabaseClient {
   if (!hasSupabaseEnv()) {
     return createLocalSupabaseClient() as unknown as SupabaseClient;
   }
-  // With real Supabase configured, falling back to the demo store would report success and save nothing.
+  // don't fall back to the demo store when Supabase is configured
   if (!hasSupabaseAdminEnv()) {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured on the server.");
   }

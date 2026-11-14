@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getCurrentLanguage } from "@/lib/i18n-server";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 
-// Read-only preview of what teachers see. Comments are written by teachers from their own account.
+// read-only, teachers write comments from their own account
 export default async function AdminTeacherFollowUpPage() {
   const { supabase } = await getCurrentUser("admin");
   const lang = await getCurrentLanguage();

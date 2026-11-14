@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   }
   const { data: userData, error } = await admin.auth.admin.updateUserById(id, { password: temporaryPassword });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  // admin.signOut needs the user's JWT, not an id. The middleware requires a row in account_active_sessions, so removing them ends every open session.
+  // signOut() needs the user's JWT, so drop their session rows instead (middleware checks them)
   await admin.from("account_active_sessions").delete().eq("user_id", id);
   const { data: profile } = await admin.from("users").select("full_name").eq("id", id).single();
   const email = userData.user.email;

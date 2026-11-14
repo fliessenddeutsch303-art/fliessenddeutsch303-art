@@ -20,7 +20,7 @@ const blankRow: StaffRow = { present: false, check_in: "", check_out: "", sessio
 const timeValue = (value: unknown) => String(value ?? "").slice(0, 5);
 
 function refreshClassProgress(body: { classIds?: string[]; teacherId?: string; date: string }) {
-  // Best effort: a failure here must never hide the "saved" message.
+  // best effort, don't block the saved message
   return fetch("/api/class-progress", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
 }
 
@@ -42,7 +42,7 @@ export function TeacherAttendanceForm({ teachers, employees = [], recordedBy }: 
   const [loadError, setLoadError] = useState("");
   const { enqueue, sync, pending, message, error } = useOfflineQueue();
 
-  // Load what is already recorded for the day so saving never wipes earlier check-ins.
+  // load the day's rows first so saving doesn't wipe earlier check-ins
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -176,7 +176,7 @@ export function StudentAttendanceForm({ classes, recordedBy }: { classes: Class[
     setSelectedStudents((klass?.students ?? []).map((student) => student.id));
   }, [classId, klass]);
 
-  // Show statuses already recorded (including QR scans); students without a record stay "not marked".
+  // prefill existing statuses (QR scans too), the rest stay not marked
   useEffect(() => {
     let cancelled = false;
     setStatuses({});

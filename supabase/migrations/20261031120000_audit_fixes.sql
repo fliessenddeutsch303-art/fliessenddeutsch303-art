@@ -1,13 +1,10 @@
--- Fixes found during the 2026-10-31 audit. Safe to re-run.
+-- safe to re-run
 
--- 1. The exam manager stores quiz and main-test rows; the enum only allowed
---    placement/osd/internal, so every exam-row save failed.
+-- exam types used by the exam manager
 alter type public.exam_type add value if not exists 'quiz';
 alter type public.exam_type add value if not exists 'main';
 
--- 2. Shared department logins have several employee profiles. Attendance was
---    unique per login account per day, so the second person on a shared login
---    could never be checked in. Attendance is now unique per profile per day.
+-- attendance is unique per profile per day (shared logins have several people)
 do $$
 declare
   constraint_name text;
@@ -25,18 +22,17 @@ end $$;
 
 create unique index if not exists employee_attendance_profile_date_key
   on public.employee_attendance(employee_profile_id, date);
--- Legacy rows without a profile keep one row per account per day.
+-- old rows without a profile
 create unique index if not exists employee_attendance_account_date_legacy_key
   on public.employee_attendance(user_id, date) where employee_profile_id is null;
 
--- 3. Teachers can be paid per session. Account Center stores the rate in hourly_rate.
+-- per-session pay for teachers (rate in hourly_rate)
 alter table public.users drop constraint if exists users_payroll_type_check;
 alter table public.users
   add constraint users_payroll_type_check
   check (payroll_type in ('monthly_salary', 'monthly_wage', 'hourly', 'per_session'));
 
--- 4. Deleting an employee failed with a foreign-key error once they had created
---    any record. Keep the history and clear the reference instead.
+-- keep history when an employee is deleted
 do $$
 declare
   fk record;
@@ -63,8 +59,7 @@ begin
   end loop;
 end $$;
 
--- 5. Bookings were counted by the lead's creation date, so a lead created last
---    month and booked today never appeared in today's numbers.
+-- booked_at so bookings count on the day they happen
 alter table public.leads add column if not exists booked_at timestamptz;
 update public.leads set booked_at = created_at where status = 'booked' and booked_at is null;
 create index if not exists leads_booked_at_idx on public.leads(booked_at) where booked_at is not null;
@@ -85,17 +80,14 @@ drop trigger if exists leads_set_booked_at on public.leads;
 create trigger leads_set_booked_at before insert or update of status on public.leads
   for each row execute function public.set_lead_booked_at();
 
--- 6. Indexes for the date-scoped dashboard/report queries.
+-- indexes for dashboard/report date filters
 create index if not exists student_attendance_date_idx on public.student_attendance(date);
 create index if not exists teacher_attendance_date_idx on public.teacher_attendance(date);
 create index if not exists employee_attendance_date_idx on public.employee_attendance(date);
 create index if not exists treasury_records_date_idx on public.treasury_records(date);
 create index if not exists lead_interactions_created_at_idx on public.lead_interactions(created_at);
 
--- 7. The role helpers read public.users from inside policies on public.users.
---    As invoker functions they were re-checked by RLS on every row (and can
---    recurse through "admin all users"). Run them as definer with a fixed
---    search_path; auth.uid() still identifies the caller.
+-- role helpers read public.users from its own policies, run them as definer
 create or replace function public.current_role() returns public.user_role
 language sql stable security definer set search_path = public as $$
   select role from public.users where id = (select auth.uid()) and is_active = true
@@ -111,8 +103,7 @@ language sql stable security definer set search_path = public as $$
   select public.current_role() = 'admin'
 $$;
 
--- 8. A lead with no file (for example a student moved to the waiting list)
---    was invisible to the sales user it was assigned to.
+-- sales should see their leads that have no file
 drop policy if exists "sales assigned leads" on public.leads;
 create policy "sales assigned leads" on public.leads for all to authenticated
   using (
@@ -125,23 +116,21 @@ create policy "sales assigned leads" on public.leads for all to authenticated
   )
   with check (public.current_role() = 'sales' and assigned_to = (select auth.uid()));
 
--- 9. Teacher screens no longer show payments; do not leave the data readable through the API.
+-- teachers don't get payment data
 drop policy if exists "teacher read own student accounts" on public.student_account_records;
 
--- 10. Employee profiles carry pay rates. Only reception (staff check-in) and
---     the login that owns a profile need to read them besides admins.
+-- profiles have pay rates, only admin, reception and the owner can read them
 drop policy if exists "staff read employee profiles" on public.employee_profiles;
 create policy "staff read employee profiles" on public.employee_profiles
   for select to authenticated
   using (public.current_role() = 'reception' or account_user_id = (select auth.uid()));
 
--- 11. Audit rows must carry the real caller; any signed-in user could insert
---     rows in someone else's name. (Server routes use the service role, which bypasses RLS.)
+-- audit rows must use the caller's own id (server routes use the service role)
 drop policy if exists "Authenticated users can write audit logs" on public.audit_logs;
 create policy "Authenticated users can write audit logs" on public.audit_logs
   for insert to authenticated with check (actor_user_id = (select auth.uid()));
 
--- Changes made by server routes (no end-user session) were logged as "Unknown user".
+-- 'System' for changes without a user session
 create or replace function public.write_audit_log() returns trigger
 language plpgsql security invoker as $$
 declare
@@ -173,8 +162,7 @@ begin
 end;
 $$;
 
--- 12. Tables created after the initial "grant ... on all tables" rely on
---     default privileges; make the grants explicit. RLS still decides access.
+-- explicit grants for tables added later
 grant select, insert on public.audit_logs to authenticated;
 grant select, insert, update, delete on public.textbook_inventory to authenticated;
 grant select, insert, update, delete on public.lead_reminders to authenticated;

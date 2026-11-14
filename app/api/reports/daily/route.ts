@@ -7,7 +7,7 @@ import { escapeHtml, formatMoney } from "@/lib/utils";
 
 async function authorized(request: Request) {
   const secret = process.env.CRON_SECRET;
-  // Vercel Cron sends `Authorization: Bearer <CRON_SECRET>`.
+  // Vercel cron sends Authorization: Bearer <CRON_SECRET>
   const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (secret && (bearer === secret || request.headers.get("x-cron-secret") === secret)) return true;
   return (await requireApiUser(["admin"])).ok;
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (!(await authorized(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  // The cron request has no user session, so RLS would hide every row.
+  // cron calls have no user session, read with the service role
   const supabase = createSupabaseAdminClient();
   const today = academyDate();
   const dayStart = academyDayStartIso(today);

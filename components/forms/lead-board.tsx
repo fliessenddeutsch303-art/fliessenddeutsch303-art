@@ -91,7 +91,7 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
   const [followUpLeadId, setFollowUpLeadId] = useState<string | null>(null);
   const [followUpNote, setFollowUpNote] = useState("");
   const focusValues = useRef(new Map<string, string>());
-  // Created on first use: the browser client needs `window`, which does not exist while the server renders this component.
+  // lazy, window doesn't exist during SSR
   const clientRef = useRef<ReturnType<typeof createSupabaseBrowserClient> | null>(null);
   const db = () => (clientRef.current ??= createSupabaseBrowserClient());
 
@@ -133,7 +133,7 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
 
   async function saveLeadValue(id: string, key: string, value: string, before?: string) {
     const column = sheetColumns.find((item) => item.key === key);
-    // A date input cannot display a non-ISO imported string, so an empty read-back is not a change.
+    // date inputs can't show non-ISO imported values, so empty isn't a change
     const shown = before !== undefined && column?.type === "date" && !isoDay(before) ? "" : before;
     if (value === shown) return;
     setSaving(id);
@@ -155,7 +155,7 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
     setMessage("Lead saved");
   }
 
-  /** Reassignment goes through the API so the new rep also gets access to the leads' files. */
+  // via the API so the rep also gets access to the files
   async function runAssign(ids: string[], assignedTo: string | null) {
     if (!hasSupabaseEnv()) {
       const results = await Promise.all(ids.map((id) => db().from("leads").update({ assigned_to: assignedTo }).eq("id", id)));
@@ -193,7 +193,7 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
     setMessage(done ? `Assigned ${done} lead${done === 1 ? "" : "s"}${result.failed ? `, ${result.failed} failed${result.error ? `: ${result.error}` : ""}` : " successfully"}${result.warning ? `. ${result.warning}` : ""}` : result.error ?? "Assignment failed");
   }
 
-  /** Creates, replaces or (when the date is cleared) removes the reminder for a lead. */
+  // empty date removes the reminder
   async function syncReminder(lead: Lead) {
     const reminderDate = lead.crm_data?.reminder_date ?? "";
     if (reminderDate && !isoDay(reminderDate)) return;
@@ -210,7 +210,6 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
     window.dispatchEvent(new Event("fd-reminders-updated"));
   }
 
-  /** Follow-ups feed the dashboard, reports and sales KPIs. */
   async function logInteraction(lead: Lead, note: string) {
     const { data, error } = await db().from("lead_interactions").insert({ lead_id: lead.id, note, created_by: currentUserId }).select("id,note,created_at").single();
     if (error) return error;

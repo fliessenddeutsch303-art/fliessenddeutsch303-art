@@ -15,6 +15,6 @@ export async function POST(request: Request) {
   cookieStore.delete("fd_local_user_email");
   cookieStore.delete("fd_local_role");
   await supabase.auth.signOut();
-  // 303 turns the POST into a GET for the login page.
+  // 303 so the browser follows up with a GET
   return NextResponse.redirect(new URL("/login", request.url), 303);
 }

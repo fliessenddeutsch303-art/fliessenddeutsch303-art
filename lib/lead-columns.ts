@@ -3,7 +3,6 @@ export const PHONE_ALIASES = ["Phone", "Number", "Mobile", "الهاتف", "رق
 
 const squash = (value: string) => value.toLowerCase().replace(/[\s_-]/g, "");
 
-/** First column whose name matches one of the aliases. */
 export function findColumn(columns: string[], aliases: string[]) {
   return columns.find((column) => aliases.some((alias) => squash(column) === squash(alias)));
 }

@@ -73,7 +73,7 @@ export function ExamManager({ rows, classes }: { rows: ExamRow[]; classes: Class
     const noBooking = { booking_status: "not_booked", booked_class_id: null };
     const levelScore = form.levelTaken && form.levelScore !== "" ? Number(form.levelScore) : null;
     const levelResult = form.levelTaken ? form.levelResult : "";
-    // Update the existing row, or insert one (only when there is something to store) and keep its id for later edits.
+    // update the row, or insert it if there's something to save
     async function saveRow(id: string | null | undefined, payload: Record<string, unknown>, hasData: boolean) {
       if (id) {
         const { error } = await supabase.from("exam_records").update(payload).eq("id", id);
@@ -83,7 +83,7 @@ export function ExamManager({ rows, classes }: { rows: ExamRow[]; classes: Class
       const { data, error } = await supabase.from("exam_records").insert({ student_id: studentId, scheduled_at: form.levelDate || now, ...payload }).select("id").single();
       return { id: (data?.id as string | undefined) ?? null, error };
     }
-    // scheduled_at is only written for a new row or when the level-test date itself was changed.
+    // only touch scheduled_at for new rows or when the date changed
     const levelPayload = { exam_type: "placement", ...(!editing.level_test_id || levelDateChanged ? { scheduled_at: form.levelDate || now } : {}), level_result: levelResult, score_percent: levelScore, result_comment: form.levelComment, ...(bookingOnMain ? noBooking : bookingFields) };
     const level = await saveRow(editing.level_test_id, levelPayload, Boolean(form.levelDate || levelResult || form.levelTaken || form.levelComment || (!bookingOnMain && (form.booked === "booked" || form.groupId))));
     if (level.error) { setSaved(level.error.message); return; }

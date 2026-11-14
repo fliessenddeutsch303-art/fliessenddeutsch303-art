@@ -3,26 +3,16 @@
 import { useEffect } from "react";
 import { searchAliases } from "@/lib/tag-search";
 
-/**
- * Highlights what is typed in any search or filter box inside the results next to it, across the whole app.
- *
- * It paints with the CSS Custom Highlight API, so it never changes the DOM: React keeps owning the markup and
- * the highlighter cannot trigger its own MutationObserver (the Arabic translator once looped that way).
- *
- * A field counts as a search field when it has `data-search`, or when it is a text box outside any form or
- * table whose placeholder/label reads like a search ("Search...", "Tag", "بحث", "التصنيف", ...).
- * Results are looked up in the closest `[data-search-scope]`, else the closest ancestor holding a table,
- * else <main>. Table headers, labels and `[data-no-search-highlight]` are skipped.
- * Text inside editable cells (inputs, e.g. the lead board) cannot be painted, so a matching cell gets
- * `data-search-hit` and is outlined instead; React does not own that attribute.
- */
+// Highlights what's typed in a search box inside the results next to it.
+// Uses the CSS highlight API so the DOM isn't touched. Inputs with data-search (or a
+// search-looking placeholder) count. Input cells can't be painted, they get data-search-hit.
 const HIGHLIGHT = "fd-search";
 const SEARCH_WORDS = /search|filter|tag|name or phone|بحث|ابحث|البحث|تصفية|فلتر|التصنيف|تصنيف|الاسم أو/i;
 const SKIP = "script,style,noscript,textarea,input,select,option,thead,th,label,[data-no-search-highlight]";
 
 type Normalized = { text: string; map: number[] };
 
-/** Lower-case, unify Arabic letter forms and digits, drop diacritics; `map` points each character back to the original index. */
+// lower-case, unify Arabic letters/digits, drop tashkeel. map = index in the original
 function normalize(value: string): Normalized {
   let text = "";
   const map: number[] = [];
@@ -59,7 +49,6 @@ function scopeOf(input: HTMLElement): Element | null {
   return document.querySelector("main");
 }
 
-/** What to look for: the query itself, its digits when it reads like a phone number, and bilingual tag aliases. */
 function needlesFor(query: string) {
   const plain = normalize(query.trim()).text;
   if (!plain) return { words: [] as string[], digits: "" };
@@ -77,7 +66,7 @@ function rangesIn(node: Text, needles: ReturnType<typeof needlesFor>) {
     for (let at = text.indexOf(word); at !== -1; at = text.indexOf(word, at + word.length)) found.push([map[at], map[at + word.length - 1] + 1]);
   }
   if (needles.digits.length) {
-    // "010 1234" should still match a stored "0101234...": compare digits only.
+    // digits only, so spaces in phone numbers don't matter
     const positions: number[] = [];
     let digits = "";
     for (let index = 0; index < text.length; index += 1) if (/\d/.test(text[index])) { digits += text[index]; positions.push(map[index]); }
@@ -125,7 +114,7 @@ export function SearchHighlighter() {
     const schedule = () => { window.clearTimeout(timer); timer = window.setTimeout(paint, 60); };
     const onInput = (event: Event) => { if (isSearchField(event.target)) schedule(); };
 
-    // Results re-render after a filter changes or a page loads more rows; repaint then too.
+    // results re-render after filtering, repaint
     const observer = new MutationObserver(() => { if (active) schedule(); });
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     document.addEventListener("input", onInput, true);

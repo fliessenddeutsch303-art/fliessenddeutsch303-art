@@ -21,7 +21,7 @@ export default async function ClassesPage() {
   for (const row of todayStudents.data ?? []) scansByClass.set(row.class_id, (scansByClass.get(row.class_id) ?? new Set<string>()).add(row.student_id));
   const teachersIn = new Set((todayTeachers.data ?? []).filter((row) => row.check_in).map((row) => row.teacher_id));
   const latestCompletedExam = promotionExamByStudent(exams.data ?? []);
-  // Read-only: sessions are counted when attendance is saved (see /api/class-progress), never while rendering.
+  // sessions are counted in /api/class-progress when attendance is saved
   const classesWithProgress = (classes.data ?? []).map((row) => ({
     ...row,
     students: (row.students ?? []).map((student) => {

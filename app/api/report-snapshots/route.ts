@@ -6,8 +6,7 @@ export async function GET() {
   if (!auth.ok) return auth.response;
   const { supabase, profile: user } = auth;
   const { data, error } = await supabase.from("report_snapshots").select("section,rows").eq("owner_id", user.id);
-  // Older hosted projects may not have received the optional snapshot migration yet.
-  // Keep live reports usable and let the import action fall back to local storage.
+  // table may be missing on older projects, the UI falls back to local storage
   if (error && error.message.includes("report_snapshots")) return NextResponse.json({ snapshots: [], unavailable: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ snapshots: data ?? [] });

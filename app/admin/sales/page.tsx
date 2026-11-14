@@ -14,7 +14,7 @@ export default async function AdminSalesPage() {
     fetchAll<{ created_by: string | null }>((from, to) => supabase.from("lead_interactions").select("created_by,created_at").gte("created_at", weekStart).order("id").range(from, to)),
     fetchAll<{ assigned_to: string | null }>((from, to) => supabase.from("leads").select("assigned_to,booked_at").gte("booked_at", monthStart).order("id").range(from, to)),
   ]);
-  // Inactive reps only appear while leads are still assigned to them.
+  // keep inactive reps while they still have leads
   const withLeads = new Set(((leads.data ?? []) as Array<{ assigned_to?: string | null }>).map((lead) => lead.assigned_to));
   const shownReps = ((reps.data ?? []) as Array<{ id: string; full_name: string; is_active: boolean }>).filter((rep) => rep.is_active || withLeads.has(rep.id)).map((rep) => ({ ...rep, full_name: rep.is_active ? rep.full_name : `${rep.full_name} (inactive)` }));
   return (

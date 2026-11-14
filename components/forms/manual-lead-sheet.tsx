@@ -79,11 +79,11 @@ export function ManualLeadSheet({ initialSheetId, embedded = false, onDeleted, c
     void fetch("/api/manual-sheets", { cache: "no-store" }).then(async (response) => {
       if (!response.ok) throw new Error("Cloud sheets unavailable");
       const json = await response.json() as { sheets?: ManualSheet[]; unavailable?: boolean };
-      // The API answers 200 with `unavailable` when the cloud table is not installed; saving would then fail.
+      // table not installed, saving would fail
       if (json.unavailable) throw new Error("Cloud sheets unavailable");
       if (cancelled) return;
       const stored = normalizeSheets(json.sheets ?? []);
-      // Keep sheets with unsaved edits; everything else takes the server copy.
+      // keep sheets with unsaved edits
       const kept = sheetsRef.current.filter((sheet) => dirtyRef.current.has(sheet.id));
       stored.forEach((sheet) => { if (!dirtyRef.current.has(sheet.id)) conflictRef.current.delete(sheet.id); });
       setConflicts(new Set(conflictRef.current));
@@ -131,7 +131,7 @@ export function ManualLeadSheet({ initialSheetId, embedded = false, onDeleted, c
     setDirtyTick((tick) => tick + 1);
   }
 
-  /** Posts only sheets the user changed; a sheet changed elsewhere is held back until reloaded. */
+  // only post changed sheets, skip ones changed elsewhere until reload
   async function saveDirty() {
     if (savingRef.current) return;
     savingRef.current = true;
@@ -231,7 +231,7 @@ export function ManualLeadSheet({ initialSheetId, embedded = false, onDeleted, c
     if (!fullName || !phone) { setTransferMessage("Name and phone are required in this row."); return; }
     setTransferring(true);
     setTransferMessage("");
-    // The server reads the stored row, so pending edits must be saved first.
+    // the server reads the stored row, save pending edits first
     if (dirtyRef.current.has(active.id)) {
       await saveDirty();
       if (dirtyRef.current.has(active.id) || conflictRef.current.has(active.id)) { setTransferring(false); setTransferMessage("Save the pending changes to this sheet before transferring (see the message above)."); return; }
@@ -242,7 +242,7 @@ export function ManualLeadSheet({ initialSheetId, embedded = false, onDeleted, c
     if (!response) { setTransferMessage("The connection was lost. Try again."); return; }
     if (response.status === 409 && result.duplicate) { setTransferDuplicate(result.duplicate.full_name); setTransferMessage(result.error ?? ""); return; }
     if (!response.ok || !result.studentId) { setTransferMessage(result.error ?? "The student could not be transferred."); return; }
-    // The server already stored the marker and bumped updated_at, so this is not an unsaved edit.
+    // the server already saved the marker
     setSheets((current) => current.map((sheet) => sheet.id === active.id ? { ...sheet, updated_at: result.updated_at ?? sheet.updated_at, rows: sheet.rows.map((item, index) => index === rowIndex ? { ...item, __converted_student_id: result.studentId ?? "" } : item) } : sheet));
     setTransferRowIndex(null);
   }

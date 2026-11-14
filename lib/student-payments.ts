@@ -2,7 +2,7 @@ import { academyDateOf } from "@/lib/dates";
 
 export type StudentPayment = { id: string; amount: number; paid_at: string; receipt_no?: string | null };
 
-/** Paid account records grouped by student, newest first; `paid_at` becomes the Cairo calendar date. */
+// paid_at as a Cairo date, newest first
 export function groupPayments(rows: Array<{ id: string; student_id: string; amount: number | string | null; paid_at: string | null; receipt_no?: string | null }>) {
   const byStudent = new Map<string, StudentPayment[]>();
   for (const row of rows) {

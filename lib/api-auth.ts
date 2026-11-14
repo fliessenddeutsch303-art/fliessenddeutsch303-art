@@ -10,10 +10,7 @@ type ApiAuth =
   | { ok: true; supabase: SupabaseClient; profile: UserProfile }
   | { ok: false; response: NextResponse };
 
-/**
- * Auth check for API routes. Unlike getCurrentUser it never redirects: callers get a JSON 401/403 to return.
- * Deactivated accounts are rejected even while their session cookie is still valid.
- */
+// like getCurrentUser, but returns JSON 401/403 instead of redirecting
 export async function requireApiUser(roles?: Role[]): Promise<ApiAuth> {
   if (!hasSupabaseEnv()) {
     const cookieStore = await cookies();

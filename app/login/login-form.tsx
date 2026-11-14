@@ -103,7 +103,7 @@ function LoginForm({ lang }: { lang: Lang }) {
   );
 }
 
-// The language comes from the server so the first render matches the server HTML.
+// lang comes from the server to avoid a hydration mismatch
 export function LoginScreen({ lang }: { lang: Lang }) {
   return (
     <Suspense fallback={<main className="flex min-h-screen items-center justify-center bg-[#FCFAF6] p-4">{dictionaries[lang].loading}</main>}>

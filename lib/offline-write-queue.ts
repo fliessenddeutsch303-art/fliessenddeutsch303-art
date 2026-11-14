@@ -43,7 +43,6 @@ export function userIdFromToken(token: string | null | undefined) {
   }
 }
 
-/** Empties both offline queues (student/staff attendance and generic Supabase writes). */
 export function clearOfflineQueues() {
   if (typeof window === "undefined") return;
   try {
@@ -97,7 +96,7 @@ async function enqueueRequest(url: string, method: string, headers: Headers, bod
   writeQueue(queue);
 }
 
-/** 401/408/429/5xx can succeed later; any other 4xx will never succeed and must not block the queue. */
+// these can succeed later, other 4xx won't
 function isRetryable(status: number) {
   return status === 401 || status === 408 || status === 429 || status >= 500;
 }
@@ -110,7 +109,7 @@ export async function syncPendingWrites(nativeFetch: typeof window.fetch, getAcc
     let queue = readQueue();
     let synced = 0;
     const failed: string[] = [];
-    // Stored requests carry the access token from when they were queued; it expires after an hour.
+    // stored tokens expire after an hour, use a fresh one
     const accessToken = getAccessToken ? await getAccessToken().catch(() => null) : null;
     const currentUserId = userIdFromToken(accessToken);
     for (const item of [...queue]) {

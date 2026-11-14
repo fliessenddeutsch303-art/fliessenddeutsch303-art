@@ -10,19 +10,16 @@ type EmployeePayroll = {
   hourly_rate?: number | null;
 };
 
-/** Account Center payroll settings -> teachers.pay_type / base_rate (payroll reads the teachers row). */
+// account payroll settings -> teachers row
 export function teacherPay(employee: EmployeePayroll) {
   if (employee.payroll_type === "hourly") return { pay_type: "hourly", base_rate: Number(employee.hourly_rate ?? 0) };
-  // Per-session rate is stored in hourly_rate on the account.
+  // per-session rate lives in hourly_rate
   if (employee.payroll_type === "per_session") return { pay_type: "per_session", base_rate: Number(employee.hourly_rate ?? 0) };
   if (employee.payroll_type === "monthly_wage") return { pay_type: "fixed", base_rate: Number(employee.monthly_wage ?? 0) };
   return { pay_type: "fixed", base_rate: Number(employee.monthly_salary ?? 0) };
 }
 
-/**
- * Keep the login account and the teacher record in sync. Classes reference teachers, not users.
- * With `updateExisting: false` only missing teacher rows are created, so page loads never overwrite pay settings.
- */
+// keeps the teachers row in sync with the login. updateExisting: false only creates missing rows
 export async function ensureTeacherProfile(supabase: SupabaseClient, employee: EmployeePayroll, { updateExisting = true } = {}) {
   if (employee.role !== "teacher") return { data: null, error: null };
 

@@ -40,7 +40,7 @@ export function ReportDataTools({ reportData }: { reportData: ReportData }) {
         const saved = window.localStorage.getItem(storageKey);
         if (saved && !cancelled) setSnapshot(JSON.parse(saved) as Partial<ReportData>);
       } catch {
-        // Ignore malformed local snapshots and keep the live report available.
+        // ignore broken local snapshots
       }
     });
     return () => { cancelled = true; };

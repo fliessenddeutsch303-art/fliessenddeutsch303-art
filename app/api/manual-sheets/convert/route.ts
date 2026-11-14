@@ -31,7 +31,6 @@ export async function POST(request: Request) {
     return stored.name === body.full_name!.trim() && Boolean(stored.phone) && normalizePhone(stored.phone) === normalizePhone(body.phone);
   };
 
-  // The caller's client proves they can read the sheet.
   const { data: sheet, error: sheetError } = await supabase.from("manual_sheets").select("id,rows").eq("id", body.sheet_id).maybeSingle();
   if (sheetError || !sheet) return NextResponse.json({ error: "Sheet not found or not accessible" }, { status: 404 });
   const rows = Array.isArray(sheet.rows) ? sheet.rows as SheetRow[] : [];
@@ -41,7 +40,7 @@ export async function POST(request: Request) {
   if (!matches(row)) return changed();
   const stored = readRow(row, body);
 
-  // Sales may insert students but cannot read them back under RLS, so student and sheet writes run server-side.
+  // sales can insert students but not read them, so use the admin client
   const writer = createSupabaseAdminClient();
   if (!body.force) {
     const { data: duplicates } = await writer.from("students").select("id,full_name").in("phone", phoneVariants(stored.phone)).limit(1);
@@ -59,7 +58,7 @@ export async function POST(request: Request) {
   }).select("id").single();
   if (studentError || !student) return NextResponse.json({ error: studentError?.message ?? "Could not create student" }, { status: 400 });
 
-  // Mark only this row, against the freshest copy; retry when an autosave lands in between.
+  // mark only this row on the latest copy, retry if an autosave got in between
   const convertedAt = new Date().toISOString();
   let lastError = "";
   for (let attempt = 0; attempt < 3; attempt += 1) {

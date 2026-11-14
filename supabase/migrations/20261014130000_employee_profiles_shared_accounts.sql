@@ -1,4 +1,4 @@
--- Login accounts represent access groups; employee_profiles represent people.
+-- logins are access groups, employee_profiles are the people
 alter table public.users
   add column if not exists account_kind text not null default 'individual';
 
@@ -51,12 +51,12 @@ create policy "staff read employee profiles" on public.employee_profiles
 
 grant select, insert, update, delete on public.employee_profiles to authenticated;
 
--- Shared department accounts are unique by role. Existing individual accounts are untouched.
+-- one shared account per department role
 create unique index if not exists shared_department_account_role_idx
   on public.users(role)
   where account_kind = 'shared' and role in ('reception', 'sales');
 
--- One active browser/device session per login account.
+-- one active session per login
 create table if not exists public.account_active_sessions (
   user_id uuid primary key references public.users(id) on delete cascade,
   session_key text not null unique,
@@ -68,7 +68,7 @@ create policy "users can read own active session" on public.account_active_sessi
   for select to authenticated using (user_id = (select auth.uid()));
 grant select on public.account_active_sessions to authenticated;
 
--- Capture row-level changes for the admin log, including the real profile/account actor.
+-- audit log trigger
 create or replace function public.write_audit_log() returns trigger
 language plpgsql security invoker as $$
 declare

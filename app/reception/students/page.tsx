@@ -8,7 +8,7 @@ import { groupPayments } from "@/lib/student-payments";
 export default async function ReceptionStudentsPage() {
   const { supabase, profile } = await getCurrentUser("reception");
   const [students, classes, teachers, books, textbooks, payments] = await Promise.all([
-    // Freeze fields must be loaded, otherwise saving an edit clears a student's freeze.
+    // freeze fields are needed, otherwise editing a student clears the freeze
     fetchAll((from, to) => supabase.from("students").select("id,full_name,phone,email,level,tags,class_id,learning_mode,status,total_price,amount_paid,payment_due_date,payment_comment,freeze_start_date,freeze_months,freeze_end_date,level_completed_stopped,enrolled_at,created_at,portal_token,classes(name,teachers(name))").order("created_at", { ascending: false }).order("id").range(from, to)),
     supabase.from("classes").select("id,name").order("name"),
     supabase.from("teachers").select("id,name").order("name"),

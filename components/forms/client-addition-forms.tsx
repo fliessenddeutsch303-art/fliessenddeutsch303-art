@@ -85,7 +85,7 @@ export function AccountRecordForm({ students, classes, teachers, users, defaultS
       setSaved(insertError.message);
       return;
     }
-    // Keep the student's running "amount paid" in step with recorded payments.
+    // keep students.amount_paid in sync
     if (status === "paid" && form.get("add_to_paid") === "on") {
       const { data: student, error: readError } = await supabase.from("students").select("amount_paid").eq("id", studentId).single();
       const { error: updateError } = readError ? { error: readError } : await supabase.from("students").update({ amount_paid: Number(student?.amount_paid ?? 0) + amount }).eq("id", studentId);

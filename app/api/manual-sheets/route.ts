@@ -8,7 +8,7 @@ export async function GET() {
   const auth = await requireApiUser(["admin", "sales", "reception"]);
   if (!auth.ok) return auth.response;
   const { supabase, profile } = auth;
-  // RLS already limits which sheets a sales user can read; only the demo store needs the filter.
+  // RLS filters for sales, the demo store doesn't
   const result = await supabase.from("manual_sheets").select("id,name,columns,rows,owner_id,assigned_sales_ids,created_at,updated_at").order("updated_at", { ascending: false });
   const data = profile.role === "sales" && !hasSupabaseEnv()
     ? (result.data ?? []).filter((sheet: { owner_id?: string; assigned_sales_ids?: string[] }) => sheet.owner_id === profile.id || (sheet.assigned_sales_ids ?? []).includes(profile.id))
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, updated_at: updatedAt });
   }
 
-  // Reject saves based on a copy older than what is stored.
+  // reject saves from an outdated copy
   if (body.updated_at && existing.updated_at && new Date(existing.updated_at).getTime() > new Date(body.updated_at).getTime()) return conflict;
   const canManage = profile.role === "admin" || existing.owner_id === profile.id;
   let update = supabase.from("manual_sheets").update({

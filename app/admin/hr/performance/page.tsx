@@ -49,7 +49,7 @@ export default async function HrPerformancePage() {
     fetchAll((from, to) => supabase.from("student_worker_feedback").select("*").order("created_at", { ascending: false }).order("id").range(from, to)),
     supabase.from("employee_profiles").select("id,full_name,role,account_user_id").eq("is_active", true).order("full_name"),
   ]);
-  // Names are looked up among every user; the KPI table and event form only list active non-teacher logins (teachers come from the teachers table).
+  // look names up across all users, but only list active non-teacher logins
   const users = { data: (allUsers.data ?? []).filter((user) => user.is_active && user.role !== "teacher") };
   const nameLookup = allUsers.data ?? [];
   let payslips: PayslipRow[] = [];

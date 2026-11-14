@@ -323,11 +323,11 @@ const replacements: Array<[string, string]> = [
   ["Create a class for the next level first, or choose Waiting list / Freeze student.", "أنشئ فصلًا للمستوى التالي أولًا، أو اختر قائمة الانتظار / تجميد الطالب."],
   ["Create a class for the next level first.", "أنشئ فصلًا للمستوى التالي أولًا."],
   ["Confirm", "تأكيد"],
-  // Single words last so the longer phrases above are translated first.
+  // single words last
   ["Received", "استلم"], ["Book", "الكتاب"], ["Unpaid", "غير مدفوع"], ["Books", "الكتب"], ["Close", "إغلاق"], ["Overdue", "متأخر"],
 ];
 
-// Word boundaries only where the phrase starts/ends with a letter or digit: "\b" after "..." or ")" never matches.
+// \b only works next to a word character
 const replacementPatterns = replacements.map(([english, arabic]) => {
   const escaped = english.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return [new RegExp(`${/^\w/.test(english) ? "\\b" : ""}${escaped}${/\w$/.test(english) ? "\\b" : ""}`, "g"), arabic] as const;
@@ -348,7 +348,7 @@ function translateElementAttributes(root: ParentNode) {
   });
 }
 
-// Writing an unchanged value still fires the MutationObserver, which would schedule another pass forever.
+// setting the same value still fires the observer and loops forever
 function translateAttribute(element: Element, attribute: string) {
   const value = element.getAttribute(attribute);
   if (!value) return;
@@ -375,7 +375,7 @@ export function ArabicUiTranslator({ lang }: { lang: Lang }) {
     if (lang !== "ar") return;
     translateTree(document.body);
     let timer: number | undefined;
-    // Records pile up between passes; only the nodes that were added or whose attribute changed are revisited.
+    // collect records across the debounce
     let pending: MutationRecord[] = [];
     const observer = new MutationObserver((records) => {
       pending.push(...records);

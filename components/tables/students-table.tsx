@@ -76,7 +76,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
     const tagQuery = tagFilter.toLowerCase().trim();
     return rows.filter((row) => {
       const rowDate = String(row.enrolled_at ?? row.created_at ?? "").slice(0, 10);
-      // One box searches the name and, by digits only, the phone number.
+      // name, or phone by digits only
       const matchesName = !q || matchRanges(String(row.full_name ?? ""), q).length > 0 || matchRanges(String(row.phone ?? ""), q, true).length > 0;
       const matchesLevel = !levelFilter || String(row.level ?? "") === levelFilter;
       const matchesTeacher = !teacherFilter || teacherName(row) === teacherFilter;

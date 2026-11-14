@@ -70,7 +70,7 @@ export function OfflineSyncBanner() {
   );
 }
 
-/** Sign-out form: drops the queued offline writes (after confirmation) and cached pages so the next user on a shared PC starts clean. */
+// clears offline queues and caches on sign out (shared PCs)
 export function SignOutForm({ label, className, wrapperClassName }: { label: string; className?: string; wrapperClassName?: string }) {
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     const form = event.currentTarget;

@@ -1,7 +1,4 @@
-/**
- * The academy operates on Cairo time. Servers run in UTC, so `toISOString()`
- * returns the wrong calendar day between midnight and 02:00/03:00 Cairo time.
- */
+// The academy runs on Cairo time, the server on UTC.
 export const ACADEMY_TIME_ZONE = "Africa/Cairo";
 
 function parts(date: Date) {
@@ -13,24 +10,21 @@ function parts(date: Date) {
   return { year: values.year, month: values.month, day: values.day };
 }
 
-/** YYYY-MM-DD for the given instant in Cairo. */
 export function academyDate(date = new Date()) {
   const { year, month, day } = parts(date);
   return `${year}-${month}-${day}`;
 }
 
-/** YYYY-MM-01 of the current Cairo month. */
 export function academyMonthStart(date = new Date()) {
   const { year, month } = parts(date);
   return `${year}-${month}-01`;
 }
 
-/** YYYY-MM-DD `days` before today in Cairo. */
 export function academyDaysAgo(days: number) {
   return academyDate(new Date(Date.now() - days * 86400000));
 }
 
-/** ISO instant for 00:00 Cairo time on `day` (YYYY-MM-DD), for timestamptz filters. */
+// 00:00 Cairo as an ISO string, for timestamptz filters
 export function academyDayStartIso(day: string) {
   const noonUtc = new Date(`${day}T12:00:00Z`);
   const offset = new Intl.DateTimeFormat("en-US", { timeZone: ACADEMY_TIME_ZONE, timeZoneName: "longOffset" })
@@ -39,12 +33,10 @@ export function academyDayStartIso(day: string) {
   return new Date(`${day}T00:00:00${offset === "" ? "+00:00" : offset}`).toISOString();
 }
 
-/** Cairo calendar day (YYYY-MM-DD) of a stored timestamp. */
 export function academyDateOf(value: string | null | undefined) {
   return value ? academyDate(new Date(value)) : "";
 }
 
-/** Cairo-local weekday name in lowercase English, e.g. "monday". */
 export function academyWeekday(date = new Date()) {
   return new Intl.DateTimeFormat("en-US", { timeZone: ACADEMY_TIME_ZONE, weekday: "long" }).format(date).toLowerCase();
 }

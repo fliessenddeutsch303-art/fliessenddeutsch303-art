@@ -94,7 +94,7 @@ export function StudentBooksDialog({ student, books, textbooks: stock, onClose, 
     setSaving(false);
     if (result.error || !result.data) return setMessage(result.error?.message ?? "The book could not be saved.");
     const saved = { ...payload, ...(result.data as StudentBook), price: Number((result.data as StudentBook).price ?? price) };
-    // The database moves stock when the linked book changes; mirror that here so the list stays right.
+    // a db trigger moves the stock, mirror it here
     if (editing?.textbook_id !== saved.textbook_id) onStockChange(stock.map((item) => item.id === editing?.textbook_id ? { ...item, quantity_on_hand: Number(item.quantity_on_hand ?? 0) + 1 } : item.id === saved.textbook_id ? { ...item, quantity_on_hand: Math.max(0, Number(item.quantity_on_hand ?? 0) - 1) } : item));
     onChange(editing ? books.map((book) => book.id === editing.id ? saved : book) : [saved, ...books]);
     setMessage(editing ? "Book updated." : "Book saved.");

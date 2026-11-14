@@ -10,12 +10,11 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({})) as { lead_id?: string; class_id?: string | null; force?: boolean };
   if (!body.lead_id) return NextResponse.json({ error: "Lead is required" }, { status: 400 });
 
-  // Reading through the caller's client enforces RLS: sales only see their own leads.
   const { data: lead } = await supabase.from("leads").select("id,full_name,phone,crm_data,converted_to_student_id").eq("id", body.lead_id).maybeSingle();
   if (!lead) return NextResponse.json({ error: "Lead not found or not assigned to you" }, { status: 404 });
   if (lead.converted_to_student_id) return NextResponse.json({ studentId: lead.converted_to_student_id, alreadyConverted: true });
 
-  // Sales may create students but RLS gives them no read access, so student reads and writes run server-side.
+  // sales can insert students but not read them, so use the admin client
   const writer = createSupabaseAdminClient();
   const phone = normalizePhone(lead.phone);
   if (!body.force) {
@@ -35,7 +34,7 @@ export async function POST(request: Request) {
   }).select("id").single();
   if (error || !student) return NextResponse.json({ error: error?.message ?? "Could not create student" }, { status: 400 });
 
-  // Claim the lead: only one concurrent request can flip converted_to_student_id from null.
+  // only one request can flip converted_to_student_id from null
   const { data: claimed, error: leadError } = await writer.from("leads").update({ converted_to_student_id: student.id, status: "booked" }).eq("id", lead.id).is("converted_to_student_id", null).select("id");
   if (leadError || !claimed?.length) {
     await writer.from("students").delete().eq("id", student.id);

@@ -1,9 +1,6 @@
 type PageResult<T> = { data: T[] | null; error: { message: string } | null };
 
-/**
- * PostgREST caps responses at 1000 rows, silently truncating larger tables.
- * Pages through the full result. `build` must apply a stable `order()`.
- */
+// PostgREST caps responses at 1000 rows. build() needs a stable order().
 export async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<PageResult<T>>, pageSize = 1000): Promise<PageResult<T>> {
   const rows: T[] = [];
   for (let from = 0; ; from += pageSize) {

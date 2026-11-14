@@ -3,7 +3,7 @@ import { DataTable } from "@/components/tables/data-table";
 import { getCurrentUser } from "@/lib/auth";
 import { academyDateOf } from "@/lib/dates";
 
-// Teacher view is limited to basic student information, exams, comments and attendance (no financial data).
+// basic info only, no financial data
 export default async function TeacherStudentProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, user, profile } = await getCurrentUser("teacher");

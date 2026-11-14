@@ -156,7 +156,7 @@ export function ClassManager({ initialClasses, teachers, lang = "en" }: { initia
     if (!teacherId) missing.push("Teacher");
     if (!level.trim()) missing.push("Level");
     if (!Object.keys(scheduleSlots).length || !Object.values(scheduleSlots).every(Boolean)) missing.push("Weekly schedule");
-    // Optional: empty capacity means no limit, empty session counts are saved as 0 (no total set yet).
+    // all optional, empty capacity = no limit
     const capacityValue = Number(capacity || 0);
     const totalValue = Number(totalSessions || 0);
     const doneValue = Number(sessionsDone || 0);
@@ -294,7 +294,7 @@ export function ClassManager({ initialClasses, teachers, lang = "en" }: { initia
       const payload = { class_id: targetClass.id, level: String(promotingStudent.next_level ?? "").trim().toUpperCase(), level_completed_stopped: false };
       ({ error } = await supabase.from("students").update(payload).eq("id", promotingStudent.id));
     } else if (promotionDestination === "waiting") {
-      // Update the student first so a retry cannot create a second lead; revert it if the lead cannot be stored.
+      // update the student first, revert if the lead insert fails
       ({ error } = await supabase.from("students").update({ class_id: null }).eq("id", promotingStudent.id));
       if (!error) {
         const phone = (promotingStudent.phone ?? "").trim();
@@ -322,7 +322,7 @@ export function ClassManager({ initialClasses, teachers, lang = "en" }: { initia
         }
       }
     } else {
-      // The student keeps class_id; a frozen student is identified by the freeze dates.
+      // class_id stays, the freeze dates mark the student as frozen
       const months = Math.min(3, Math.max(1, Number(freezeMonths)));
       freezePatch = { freeze_start_date: today, freeze_end_date: addMonthsClamped(today, months) };
       ({ error } = await supabase.from("students").update({ ...freezePatch, freeze_months: months }).eq("id", promotingStudent.id));

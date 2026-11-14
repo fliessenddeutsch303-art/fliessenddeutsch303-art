@@ -6,7 +6,7 @@ const pwaOptions = {
   disable: process.env.NODE_ENV === "development",
   register: true,
   skipWaiting: true,
-  // Data is per-user and must be fresh: only static assets are cached; every API, RSC, page and Supabase response goes to the network.
+  // cache static assets only, everything else goes to the network
   runtimeCaching: [
     { urlPattern: /\/_next\/static\/.+/i, handler: "CacheFirst", options: { cacheName: "next-static", expiration: { maxEntries: 128, maxAgeSeconds: 30 * 24 * 60 * 60 } } },
     { urlPattern: /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$/i, handler: "StaleWhileRevalidate", options: { cacheName: "static-assets", expiration: { maxEntries: 64, maxAgeSeconds: 24 * 60 * 60 } } },

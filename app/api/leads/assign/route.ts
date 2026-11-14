@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     failed += chunk.length - (data ?? []).length;
   }
 
-  // Sales RLS only shows leads from files listed in the rep's assigned_files.
+  // sales only see leads from files in permissions.assigned_files
   let warning = "";
   if (rep && fileIds.size) {
     const { data: fresh } = await admin.from("users").select("permissions").eq("id", rep.id).single();

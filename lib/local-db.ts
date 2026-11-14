@@ -355,7 +355,7 @@ class LocalQuery {
   }
 
   order(key: string, options?: { ascending?: boolean; referencedTable?: string }) {
-    // Ordering embedded rows is not modelled locally.
+    // embedded ordering isn't supported here
     if (options?.referencedTable) return this;
     this.sortKey = key;
     this.ascending = options?.ascending ?? true;

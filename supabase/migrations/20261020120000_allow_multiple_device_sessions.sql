@@ -1,4 +1,4 @@
--- Allow one employee account to stay signed in on multiple devices/browsers.
+-- allow signing in on several devices
 alter table public.account_active_sessions
   add column if not exists id uuid default gen_random_uuid();
 

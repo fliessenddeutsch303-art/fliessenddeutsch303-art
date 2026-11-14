@@ -1,4 +1,4 @@
-/** Phone helpers shared by client and server code (lib/excel.ts is a client module and cannot run on the server). */
+// shared with server routes (lib/excel.ts is client-only)
 export function normalizePhone(value: unknown) {
   let text = String(value ?? "").trim().replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
   if (!text || /[^\d\s.\-()+]/.test(text)) return text;
@@ -13,7 +13,7 @@ export function normalizePhone(value: unknown) {
   return international || prefixed ? `+${digits}` : digits;
 }
 
-/** Stored spellings an existing record for the same number might use. */
+// other ways the same number may be stored
 export function phoneVariants(value: unknown) {
   const raw = String(value ?? "").trim();
   const normal = normalizePhone(raw);

@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     .filter((row) => row.full_name && row.phone);
   if (!rows.length) return NextResponse.json({ error: "No rows with both a name and a phone number were found." }, { status: 400 });
 
-  // Sales can only import into their own pipeline; admin may assign to any sales rep.
+  // sales import into their own pipeline, admins can pick a rep
   const assignedTo = profile.role === "sales" ? profile.id : String(body.assignedTo ?? "") || null;
   const admin = createSupabaseAdminClient();
   if (assignedTo && profile.role === "admin") {
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     if (!rep) return NextResponse.json({ error: "The selected sales person was not found." }, { status: 400 });
   }
 
-  // Skip numbers repeated in the file or already present among the leads.
+  // skip phones repeated in the file or already in leads
   const { data: existing, error: existingError } = await fetchAll<{ phone: string }>((from, to) => admin.from("leads").select("phone").order("id").range(from, to));
   if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 });
   const seen = new Set((existing ?? []).map((lead) => normalizePhone(lead.phone)));
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
   }
 
   const warnings: string[] = [];
-  // Sales RLS only shows leads from files listed in the rep's assigned_files.
+  // sales only see leads from files in permissions.assigned_files
   if (assignedTo) {
     const { data: rep } = await admin.from("users").select("permissions").eq("id", assignedTo).single();
     const files = new Set([...(rep?.permissions?.assigned_files ?? []), file.id]);
@@ -69,7 +69,6 @@ export async function POST(request: Request) {
     if (filesError) warnings.push(`The leads were imported, but the sales person's file access could not be updated: ${filesError.message}`);
   }
 
-  // Rows that carry a reminder date get a reminder for the assigned rep and the admins.
   const dated = (inserted ?? []).length === leads.length ? leads.map((lead, index) => ({ lead, id: (inserted as Array<{ id: string }>)[index].id })).filter(({ lead }) => isoDate(lead.crm_data?.reminder_date)) : [];
   if (dated.length) {
     const { ids, error: recipientError } = await reminderRecipients(admin, assignedTo);

@@ -18,11 +18,10 @@ const paths = [
 export function PageHeaderContext({ profile, lang }: { profile: UserProfile; lang: Lang }) {
   const pathname = usePathname();
   const t = dictionaries[lang];
-  // Keep the first render identical on the server and browser. The browser
-  // fills the clock after hydration so the timestamp cannot cause a mismatch.
+  // clock starts empty to avoid a hydration mismatch
   const [now, setNow] = useState<Date | null>(null);
   const title = useMemo(() => {
-    // Longest match wins, so /admin/sales/files is not titled "Sales".
+    // longest match wins (/admin/sales/files isn't "Sales")
     const match = [...paths].sort((a, b) => b[0].length - a[0].length).find(([path]) => pathname === path || pathname.startsWith(`${path}/`));
     return match ? t.nav[match[1] as keyof typeof t.nav] : t.academySystem;
   }, [pathname, t]);

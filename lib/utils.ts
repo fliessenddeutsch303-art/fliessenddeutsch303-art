@@ -23,7 +23,7 @@ export function formatMoney(value: number | null | undefined) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(value ?? 0);
 }
 
-/** Escape text before inserting it into HTML strings (print windows, emails). */
+// for print windows and emails
 export function escapeHtml(value: unknown) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char);
 }

@@ -1,4 +1,4 @@
--- Books handed to students: what they received, when, and how the book is paid for.
+-- books given to students
 create table if not exists public.student_books (
   id uuid primary key default gen_random_uuid(),
   student_id uuid not null references public.students(id) on delete cascade,
@@ -26,13 +26,13 @@ create policy "admin and reception manage student books" on public.student_books
   with check (public.current_role() in ('admin', 'reception'));
 grant select, insert, update, delete on public.student_books to authenticated;
 
--- Reception picks books from the inventory list when handing one out.
+-- reception picks from the inventory
 drop policy if exists "reception read textbook inventory" on public.textbook_inventory;
 create policy "reception read textbook inventory" on public.textbook_inventory for select to authenticated
   using (public.current_role() = 'reception');
 
--- Stock follows hand-outs: giving a stocked book takes one off the shelf, deleting the record puts it back.
--- Security definer because reception may not update the inventory directly.
+-- stock goes down when a book is handed out and back up on delete.
+-- definer because reception can't update the inventory
 create or replace function public.student_books_adjust_stock() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin

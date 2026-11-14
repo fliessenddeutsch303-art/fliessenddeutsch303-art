@@ -22,13 +22,12 @@ export async function POST(request: Request) {
   const { leadId, dueAt, note } = await request.json().catch(() => ({})) as { leadId?: string; dueAt?: string | null; note?: string };
   if (!leadId) return NextResponse.json({ error: "Lead is required" }, { status: 400 });
   if (dueAt && !isoDate(dueAt)) return NextResponse.json({ error: "Reminder date must be YYYY-MM-DD" }, { status: 400 });
-  // The caller's own client enforces which leads they may touch.
   const { data: lead } = await auth.supabase.from("leads").select("id,assigned_to").eq("id", leadId).maybeSingle();
   if (!lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
 
-  // Sales can only read their own users row, so recipients are resolved server-side.
+  // sales can't read other users, look up recipients with the admin client
   const admin = createSupabaseAdminClient();
-  // Re-saving a reminder replaces the unread copies instead of stacking duplicates; clearing the date removes them.
+  // replace unread reminders instead of stacking them, no date = remove
   const { error: deleteError } = await admin.from("lead_reminders").delete().eq("lead_id", leadId).is("read_at", null);
   if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
   if (!dueAt) return NextResponse.json({ count: 0 });

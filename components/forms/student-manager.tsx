@@ -71,10 +71,10 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
   const [saved, setSaved] = useState("");
   const [invalidFields, setInvalidFields] = useState<string[]>([]);
 
-  // After router.refresh() (e.g. a payment recorded in the account entry form) show the fresh rows.
+  // pick up new rows after router.refresh()
   useEffect(() => setStudents(initialStudents), [initialStudents]);
 
-  // Loads the class's capacity and teacher, and asks before putting a student into a full class. Returns null when the user cancels.
+  // returns null if the user cancels on a full class
   async function loadClass(classId: string, studentId?: string) {
     const option = classes.find((klass) => klass.id === classId);
     const { data } = await createSupabaseBrowserClient().from("classes").select("name,level,capacity,teachers(name)").eq("id", classId).maybeSingle();
@@ -187,7 +187,7 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
       freeze_end_date: freezeEnd,
       level_completed_stopped: form.level_completed_stopped === "true",
     };
-    // Raising "amount paid" means money was received: record the difference as a dated payment.
+    // a higher amount_paid is a new payment, record it with its date
     const paidIncrease = Math.round((payload.amount_paid - Number(editing?.amount_paid ?? 0)) * 100) / 100;
     const paidOn = form.paid_on || academyDate();
     if (paidIncrease > 0 && paidOn > academyDate()) {

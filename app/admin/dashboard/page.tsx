@@ -20,7 +20,6 @@ export default async function AdminDashboard() {
   const monthStartIso = academyDayStartIso(monthStart);
   const weekStartIso = academyDayStartIso(academyDaysAgo(6));
   const weekday = academyWeekday();
-  // Every query is limited to what the cards need; whole-table reads are capped at 1000 rows by the API.
   const [activeStudents, classes, studentAttendance, teacherAttendance, teachers, teacherUsers, employeeAttendance, treasury, newLeads, waitingLeads, bookings, interactions, exams, books, accounts] = await Promise.all([
     supabase.from("students").select("id", { count: "exact", head: true }).eq("status", "active"),
     supabase.from("classes").select("id,name,schedule,class_status,sessions_done,total_sessions").order("created_at", { ascending: false }),

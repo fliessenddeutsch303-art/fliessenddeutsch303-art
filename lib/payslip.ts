@@ -23,7 +23,7 @@ function hoursBetween(checkIn: string | null | undefined, checkOut: string | nul
   return Math.max(0, ((oh * 60 + om) - (ih * 60 + im)) / 60);
 }
 
-/** Days with a check-in but no usable check-out (missing or earlier than the check-in): they count as 0 hours. */
+// check-in without a valid check-out counts as 0h
 function unusableDays(rows: { check_in?: string | null; check_out?: string | null }[]) {
   return rows.filter((row) => row.check_in && hoursBetween(row.check_in, row.check_out) === 0 && !(row.check_out && row.check_out === row.check_in)).length;
 }
@@ -85,12 +85,12 @@ export async function calculatePayslips(supabase: SupabaseClient, start: string,
     }];
   });
 
-  // People are employee profiles; login accounts without any profile (e.g. individual accounts) are paid as themselves.
+  // pay profiles, plus logins that have no profile
   const profiledAccounts = new Set(profiles.map((profile) => profile.account_user_id));
   const workerSource = [...profiles, ...users.filter((user) => !profiledAccounts.has(user.id))].filter((worker) => worker.role !== "teacher");
   const workerRows: PayslipRow[] = workerSource.flatMap((worker) => {
       const attendanceRows = employeeAttendance.filter((row) => row.employee_profile_id === worker.id || (!row.employee_profile_id && row.user_id === worker.id));
-      // A deactivated person is still paid for a period they actually worked in.
+      // deactivated but worked this period, still pay them
       if (!worker.is_active && !attendanceRows.length) return [];
       const hours = attendanceRows.reduce((sum, row) => sum + hoursBetween(row.check_in, row.check_out), 0);
       const invalidPerSession = worker.payroll_type === "per_session";

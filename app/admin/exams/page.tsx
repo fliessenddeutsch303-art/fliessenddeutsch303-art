@@ -40,7 +40,6 @@ export default async function StudentsFollowUpPage() {
     const klass = classById.get(student.class_id ?? "");
     const teacher = teacherById.get(klass?.teacher_id ?? "");
     const studentExams = examsByStudent.get(student.id) ?? [];
-    // Promotion uses the latest main row, else the latest non-quiz row with a result.
     const latestExam = promotionExam(studentExams);
     return {
       ...student,

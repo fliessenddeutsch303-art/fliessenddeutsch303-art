@@ -9,7 +9,7 @@ import { escapeHtml } from "@/lib/utils";
 
 const roles = ["admin", "reception", "sales", "teacher"];
 
-/** Per-session pay only applies to teachers (sessions are counted on teacher attendance). */
+// per_session is for teachers only
 function payroll(body: Record<string, unknown>) {
   const allowed = body.role === "teacher" ? ["monthly_salary", "monthly_wage", "hourly", "per_session"] : ["monthly_salary", "monthly_wage", "hourly"];
   const payrollType = allowed.includes(String(body.payroll_type)) ? String(body.payroll_type) : "monthly_salary";
@@ -53,13 +53,13 @@ export async function POST(request: Request) {
       ...(hasSupabaseAdminEnv() ? {} : { password_hash: hashLocalPassword(password) }),
     });
     if (profileError) {
-      // Do not leave a login without an application profile behind.
+      // don't leave an auth user without a profile
       if (hasSupabaseAdminEnv()) await admin.auth.admin.deleteUser(data.user.id);
       throw profileError;
     }
     const teacherResult = await ensureTeacherProfile(admin, { id: data.user.id, full_name: fullName, role: body.role, ...pay });
     if (teacherResult.error) {
-      // Roll back so a retry does not fail with "already registered".
+      // clean up so a retry doesn't fail with "already registered"
       await admin.from("users").delete().eq("id", data.user.id);
       if (hasSupabaseAdminEnv()) await admin.auth.admin.deleteUser(data.user.id);
       throw teacherResult.error;
@@ -134,14 +134,14 @@ export async function DELETE(request: Request) {
     const { count: profileCount } = await admin.from("employee_profiles").select("id", { count: "exact", head: true }).eq("account_user_id", id);
     if (profileCount) throw new Error(`This login still has ${profileCount} employee profile(s). Move or delete them in Employee profiles first, or deactivate the account instead.`);
 
-    // These tables cascade on delete: removing the login would silently erase its payroll history.
+    // these cascade, deleting would wipe the payroll history
     const history = await Promise.all(["employee_attendance", "employee_adjustments", "employee_events"].map((table) => admin.from(table).select("id", { count: "exact", head: true }).eq("user_id", id)));
     const failed = history.find((result) => result.error);
     if (failed?.error) throw failed.error;
     const historyCount = history.reduce((sum, result) => sum + (result.count ?? 0), 0);
     if (historyCount) throw new Error(`This login has ${historyCount} payroll record(s) (attendance, adjustments or HR events) that would be deleted with it. Deactivate the account instead to keep the history.`);
 
-    // teachers.user_id is ON DELETE SET NULL: the teacher record, its classes and attendance history are kept.
+    // teachers.user_id is set null, the teacher and their history stay
     if (hasSupabaseAdminEnv()) {
       const { error } = await admin.auth.admin.deleteUser(id);
       if (error) throw new Error(`Could not delete the account: ${error.message}. Deactivate it instead if it has history that must be kept.`);
@@ -149,7 +149,6 @@ export async function DELETE(request: Request) {
       const { error } = await admin.from("users").delete().eq("id", id);
       if (error) throw error;
     }
-    // Log only after the deletion actually happened.
     const details = { full_name: employee.full_name, email: employee.email, role: employee.role };
     await admin.from("audit_logs").insert({ actor_user_id: actor.id, actor_name: actor.full_name, actor_email: actor.email, action: "deleted", entity_type: "employee", entity_id: id, details });
     await sendSecurityAlert({ actor: actor.email ?? actor.full_name, entityType: "employee", entityId: id, details });

@@ -26,7 +26,7 @@ export default async function ReportsPage() {
     fetchAll((from, to) => supabase.from("leads").select("id,assigned_to,booked_at").gte("booked_at", monthStartIso).order("id").range(from, to)),
     fetchAll((from, to) => supabase.from("student_account_records").select("id,amount,status,class_id,created_at,paid_at").gte("paid_at", monthStartIso).order("id").range(from, to)),
   ]);
-  // Paid rows count in the month they were paid (paid_at); everything else in the month it was created.
+  // paid rows count in the month they were paid, the rest by created_at
   const accounts = [...new Map([...(createdAccounts.data ?? []), ...(paidAccounts.data ?? [])].map((row) => [row.id, row])).values()].filter((row) => (row.status === "paid" ? (row.paid_at ?? row.created_at) : row.created_at) >= monthStartIso);
 
   const treasuryRows = treasury.data ?? [];

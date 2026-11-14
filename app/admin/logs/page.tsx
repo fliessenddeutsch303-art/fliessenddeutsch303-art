@@ -22,7 +22,7 @@ function readableDetails(details: unknown, ar: boolean) {
 }
 
 const PAGE_SIZE = 500;
-// Database triggers write table names and insert/update/delete; the app writes singular entity names and created/updated/deleted.
+// trigger rows use table names (students, classes...), app rows use singular names
 const triggerEntities: Record<string, string> = { students: "student", classes: "class", treasury_records: "treasury", employee_profiles: "employee_profile", employee_attendance: "employee_attendance", leads: "lead", student_books: "student_book" };
 const triggerActions: Record<string, string> = { insert: "created", update: "updated", delete: "deleted" };
 
