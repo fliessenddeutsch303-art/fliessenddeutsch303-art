@@ -75,7 +75,7 @@ export function AppShell({ profile, children, lang }: { profile: UserProfile; ch
         <nav className="mt-8 grid gap-4" aria-label={t.academySystem}>
           {navGroups.map((group) => group.label ? <PersistentNavGroup key={group.label} groupKey={`group-${group.items[0]?.href}`} label={group.label} rtl={isRtl} items={group.items.map((item) => ({ href: item.href, label: t.nav[item.labelKey] }))} /> : group.items.map((item) => <ActiveNavLink key={item.href} href={item.href} label={t.nav[item.labelKey]} rtl={isRtl} />))}
         </nav>
-        <SignOutForm label={t.signOut} className="w-full" wrapperClassName="absolute bottom-5 left-5 right-5" />
+        <SignOutForm label={t.signOut} className="w-full" wrapperClassName="mt-8 pb-2" />
       </aside>
       <main className={`min-w-0 ${isRtl ? "md:pr-64" : "md:pl-64"}`}>
         <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-3 border-b bg-white/95 px-3 backdrop-blur sm:px-4 md:px-8">

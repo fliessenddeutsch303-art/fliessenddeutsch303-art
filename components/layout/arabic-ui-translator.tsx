@@ -329,11 +329,16 @@ function translateElementAttributes(root: ParentNode) {
   if (!(root instanceof Element || root instanceof Document || root instanceof DocumentFragment)) return;
   const elements = root instanceof Element ? [root, ...root.querySelectorAll<HTMLElement>("input, textarea, select, button, [aria-label], [title]")] : [...root.querySelectorAll<HTMLElement>("input, textarea, select, button, [aria-label], [title]")];
   elements.forEach((element) => {
-    for (const attribute of ["placeholder", "aria-label", "title"]) {
-      const value = element.getAttribute(attribute);
-      if (value) element.setAttribute(attribute, translate(value));
-    }
+    for (const attribute of ["placeholder", "aria-label", "title"]) translateAttribute(element, attribute);
   });
+}
+
+// Writing an unchanged value still fires the MutationObserver, which would schedule another pass forever.
+function translateAttribute(element: Element, attribute: string) {
+  const value = element.getAttribute(attribute);
+  if (!value) return;
+  const next = translate(value);
+  if (next !== value) element.setAttribute(attribute, next);
 }
 
 function translateTree(root: ParentNode) {
@@ -355,14 +360,22 @@ export function ArabicUiTranslator({ lang }: { lang: Lang }) {
     if (lang !== "ar") return;
     translateTree(document.body);
     let timer: number | undefined;
+    // Records pile up between passes; only the nodes that were added or whose attribute changed are revisited.
+    let pending: MutationRecord[] = [];
     const observer = new MutationObserver((records) => {
+      pending.push(...records);
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
-        records.forEach((record) => {
-          record.addedNodes.forEach((node) => {
-            if (node instanceof Element || node instanceof DocumentFragment) translateTree(node);
-          });
-          if (record.target instanceof Element) translateElementAttributes(record.target);
+        const batch = pending;
+        pending = [];
+        const added = new Set<Node>();
+        batch.forEach((record) => {
+          if (record.type === "attributes" && record.target instanceof Element && record.attributeName) translateAttribute(record.target, record.attributeName);
+          record.addedNodes.forEach((node) => { if (node.isConnected) added.add(node); });
+        });
+        added.forEach((node) => {
+          if (node instanceof Element || node instanceof DocumentFragment) translateTree(node);
+          else if (node instanceof Text) { const next = translate(node.nodeValue ?? ""); if (next !== node.nodeValue) node.nodeValue = next; }
         });
       }, 16);
     });

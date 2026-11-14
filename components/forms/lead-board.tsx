@@ -90,7 +90,9 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
   const [followUpLeadId, setFollowUpLeadId] = useState<string | null>(null);
   const [followUpNote, setFollowUpNote] = useState("");
   const focusValues = useRef(new Map<string, string>());
-  const supabase = createSupabaseBrowserClient();
+  // Created on first use: the browser client needs `window`, which does not exist while the server renders this component.
+  const clientRef = useRef<ReturnType<typeof createSupabaseBrowserClient> | null>(null);
+  const db = () => (clientRef.current ??= createSupabaseBrowserClient());
 
   useEffect(() => {
     const loadManualSheets = async () => {
@@ -134,13 +136,13 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
     const shown = before !== undefined && column?.type === "date" && !isoDay(before) ? "" : before;
     if (value === shown) return;
     setSaving(id);
-    const { data: latest, error: readError } = await supabase.from("leads").select("full_name,phone,source,tags,crm_data").eq("id", id).single();
+    const { data: latest, error: readError } = await db().from("leads").select("full_name,phone,source,tags,crm_data").eq("id", id).single();
     if (readError || !latest) { setSaving(null); return setMessage(readError?.message ?? "Lead could not be loaded"); }
     const latestCrm = (latest.crm_data ?? {}) as CrmData;
     const changes: Record<string, unknown> = key === "full_name" || key === "phone" || key === "source" ? { [key]: value }
       : key === "tags" ? { tags: value.split(",").map((tag) => tag.trim()).filter(Boolean) }
       : { crm_data: { ...latestCrm, [key]: value } };
-    const { error } = await supabase.from("leads").update(changes).eq("id", id);
+    const { error } = await db().from("leads").update(changes).eq("id", id);
     setSaving(null);
     if (error) return setMessage(error.message);
     const current = leads.find((item) => item.id === id);
@@ -155,7 +157,7 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
   /** Reassignment goes through the API so the new rep also gets access to the leads' files. */
   async function runAssign(ids: string[], assignedTo: string | null) {
     if (!hasSupabaseEnv()) {
-      const results = await Promise.all(ids.map((id) => supabase.from("leads").update({ assigned_to: assignedTo }).eq("id", id)));
+      const results = await Promise.all(ids.map((id) => db().from("leads").update({ assigned_to: assignedTo }).eq("id", id)));
       const updatedIds = ids.filter((_, index) => !results[index].error);
       return { updatedIds, failed: ids.length - updatedIds.length, error: results.find((result) => result.error)?.error?.message, warning: "" };
     }
@@ -209,7 +211,7 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
 
   /** Follow-ups feed the dashboard, reports and sales KPIs. */
   async function logInteraction(lead: Lead, note: string) {
-    const { data, error } = await supabase.from("lead_interactions").insert({ lead_id: lead.id, note, created_by: currentUserId }).select("id,note,created_at").single();
+    const { data, error } = await db().from("lead_interactions").insert({ lead_id: lead.id, note, created_by: currentUserId }).select("id,note,created_at").single();
     if (error) return error;
     const interaction = { ...(data as Interaction), users: null };
     setLeads((rows) => rows.map((item) => item.id === lead.id ? { ...item, lead_interactions: [interaction, ...(item.lead_interactions ?? [])] } : item));
@@ -227,7 +229,7 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
   }
 
   async function setStatus(lead: Lead, status: string) {
-    const { error } = await supabase.from("leads").update({ status }).eq("id", lead.id);
+    const { error } = await db().from("leads").update({ status }).eq("id", lead.id);
     if (!error) {
       const updated = { ...lead, status };
       setLeads((rows) => rows.map((item) => item.id === lead.id ? { ...updated, lead_interactions: item.lead_interactions } : item));
@@ -239,9 +241,9 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
 
   async function convert(lead: Lead, force = false) {
     if (!hasSupabaseEnv()) {
-      const { data, error } = await supabase.from("students").insert({ full_name: lead.full_name, phone: lead.phone, status: "active", enrolled_at: new Date().toISOString() }).select("id").single();
+      const { data, error } = await db().from("students").insert({ full_name: lead.full_name, phone: lead.phone, status: "active", enrolled_at: new Date().toISOString() }).select("id").single();
       if (error || !data) return setMessage(error?.message ?? "Could not convert lead");
-      await supabase.from("leads").update({ converted_to_student_id: data.id, status: "booked" }).eq("id", lead.id);
+      await db().from("leads").update({ converted_to_student_id: data.id, status: "booked" }).eq("id", lead.id);
       setLeads((rows) => rows.map((item) => item.id === lead.id ? { ...item, converted_to_student_id: data.id, status: "booked" } : item));
       return setMessage("Lead converted to student");
     }
@@ -310,7 +312,7 @@ export function LeadBoard({ initialLeads, currentUserId, canAssign = false, reps
       if (result?.imported) window.setTimeout(() => window.location.reload(), result.warning ? 4000 : 1500);
       return;
     }
-    const { data, error } = await supabase.from("leads").insert(imported).select();
+    const { data, error } = await db().from("leads").insert(imported).select();
     if (error) return setMessage(error.message);
     setLeads((current) => [...(data as Lead[]), ...current]);
     setMessage(`Imported ${imported.length} leads`);
