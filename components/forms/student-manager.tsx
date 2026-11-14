@@ -67,7 +67,7 @@ const blank = {
   earlier_paid_on: "",
 };
 
-export function StudentManager({ initialStudents, classes, canViewProfile = true, textbooks = [] }: { initialStudents: StudentRow[]; classes: ClassOption[]; canViewProfile?: boolean; textbooks?: TextbookOption[] }) {
+export function StudentManager({ initialStudents, classes, canViewProfile = true, textbooks = [], canDelete = false }: { initialStudents: StudentRow[]; classes: ClassOption[]; canViewProfile?: boolean; textbooks?: TextbookOption[]; canDelete?: boolean }) {
   const [students, setStudents] = useState(initialStudents);
   const [editing, setEditing] = useState<StudentRow | null>(null);
   const [form, setForm] = useState(blank);
@@ -109,6 +109,18 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
     } : row));
     void recordAudit("updated", "student", student.id, { action: "promoted", from_class: student.classes?.name ?? null, to_class: targetClass.name, from_level: student.level ?? null, to_level: payload.level });
     return { ok: true, message: `${student.full_name} moved to ${targetClass.name}.` };
+  }
+
+  async function deleteStudents(ids: string[]) {
+    const response = await fetch("/api/students", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids }) }).catch(() => null);
+    const result = (await response?.json().catch(() => ({})) ?? {}) as { deleted?: string[]; error?: string };
+    const removed = result.deleted ?? [];
+    if (removed.length) {
+      setStudents((rows) => rows.filter((row) => !removed.includes(row.id)));
+      if (editing && removed.includes(editing.id)) reset();
+    }
+    const message = result.error ? `${removed.length ? `Students deleted: ${removed.length}. ` : ""}${result.error}` : !response ? "Could not reach the server, nothing was deleted." : `Students deleted: ${removed.length}`;
+    return { removed, message };
   }
 
   function setField(key: keyof typeof blank, value: string) {
@@ -295,7 +307,7 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
           </form>
         </CardContent>
       </Card>
-      <StudentsTable rows={students as unknown as Record<string, unknown>[]} classes={classes} onEdit={(row) => startEdit(row as unknown as StudentRow)} onPromote={promoteStudent} canViewProfile={canViewProfile} textbooks={textbooks} onBooksChange={(studentId, books) => setStudents((rows) => rows.map((row) => row.id === studentId ? { ...row, books } : row))} />
+      <StudentsTable rows={students as unknown as Record<string, unknown>[]} classes={classes} onEdit={(row) => startEdit(row as unknown as StudentRow)} onPromote={promoteStudent} canViewProfile={canViewProfile} textbooks={textbooks} onBooksChange={(studentId, books) => setStudents((rows) => rows.map((row) => row.id === studentId ? { ...row, books } : row))} onDelete={canDelete ? deleteStudents : undefined} />
     </div>
   );
 }

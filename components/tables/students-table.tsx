@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { BookOpen, CheckCircle2, Snowflake, Upload } from "lucide-react";
+import { BookOpen, CheckCircle2, Snowflake, Trash2, Upload } from "lucide-react";
 import { StudentAttendanceCell } from "@/components/tables/student-attendance-cell";
 import { StudentBooksDialog, bookSummary, type StudentBook, type TextbookOption } from "@/components/forms/student-books-dialog";
 import { matchRanges } from "@/lib/search-match";
@@ -72,7 +72,7 @@ type PromotionClass = { id: string; name: string; level?: string | null };
 const booksOf = (row: Record<string, unknown>) => (Array.isArray(row.books) ? row.books : []) as StudentBook[];
 const paymentsOf = (row: Record<string, unknown>) => (Array.isArray(row.payments) ? row.payments : []) as StudentPayment[];
 
-export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewProfile = true, textbooks = [], onBooksChange }: { rows: Record<string, unknown>[]; classes?: PromotionClass[]; onEdit?: (row: Record<string, unknown>) => void; onPromote?: (student: Record<string, unknown>, classId: string) => Promise<{ ok: boolean; message: string }>; canViewProfile?: boolean; textbooks?: TextbookOption[]; onBooksChange?: (studentId: string, books: StudentBook[]) => void }) {
+export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewProfile = true, textbooks = [], onBooksChange, onDelete }: { rows: Record<string, unknown>[]; classes?: PromotionClass[]; onEdit?: (row: Record<string, unknown>) => void; onPromote?: (student: Record<string, unknown>, classId: string) => Promise<{ ok: boolean; message: string }>; canViewProfile?: boolean; textbooks?: TextbookOption[]; onBooksChange?: (studentId: string, books: StudentBook[]) => void; onDelete?: (ids: string[]) => Promise<{ removed: string[]; message: string }> }) {
   const [nameQuery, setNameQuery] = useState("");
   const [levelFilter, setLevelFilter] = useState("");
   const [teacherFilter, setTeacherFilter] = useState("");
@@ -86,6 +86,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
   const [promotionMessage, setPromotionMessage] = useState("");
   const [booksStudentId, setBooksStudentId] = useState<string | null>(null);
   const [stock, setStock] = useState(textbooks);
+  const [deleting, setDeleting] = useState(false);
 
   const levels = useMemo(() => [...new Set(rows.map((row) => String(row.level ?? "")).filter(Boolean))].sort(), [rows]);
   const teachers = useMemo(() => [...new Set(rows.map(teacherName).filter(Boolean))].sort(), [rows]);
@@ -170,6 +171,17 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
     );
   }
 
+  async function deleteStudents(targets: Record<string, unknown>[]) {
+    if (!onDelete || !targets.length) return;
+    const names = targets.slice(0, 5).map((row) => String(row.full_name ?? "")).join(", ") + (targets.length > 5 ? ` and ${targets.length - 5} more` : "");
+    if (!window.confirm(`Delete ${targets.length === 1 ? "this student" : `${targets.length} students`}: ${names}?\n\nTheir payments, attendance, books and feedback are deleted too. This cannot be undone.`)) return;
+    setDeleting(true);
+    const { removed, message } = await onDelete(targets.map((row) => String(row.id)));
+    setDeleting(false);
+    setPromotionMessage(message);
+    setSelected((current) => new Set([...current].filter((id) => !removed.includes(id))));
+  }
+
   async function submitPromotion(row: Record<string, unknown>) {
     if (!onPromote || !promotionClassId) return;
     const result = await onPromote(row, promotionClassId);
@@ -203,8 +215,10 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
           <Upload size={16} />
           {selectedRows.length ? `Export Selected (${selectedRows.length})` : `Export Filtered (${visibleRows.length})`}
         </Button>
+        {onDelete && selectedRows.length > 0 && <Button type="button" variant="outline" className="shrink-0 border-red-200 text-red-700 hover:bg-red-50" disabled={deleting} onClick={() => void deleteStudents(selectedRows)}><Trash2 size={16} /> Delete selected ({selectedRows.length})</Button>}
       </div>
 
+      {promotionMessage && <p key={promotionMessage} role="status" className="text-sm text-muted-foreground">{promotionMessage}</p>}
       <div className="max-h-[70vh] overflow-auto rounded-lg border bg-white">
         <table dir="rtl" className="w-full min-w-max text-right text-sm [&_th]:align-middle [&_th]:whitespace-nowrap [&_td]:align-middle [&_td]:whitespace-nowrap">
           <thead className="sticky top-0 z-10 bg-muted">
@@ -258,6 +272,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
                       {canViewProfile && <Button asChild size="sm" variant="outline"><Link href={`/admin/students/${id}`}>Profile</Link></Button>}
                       <Button asChild size="sm" variant="outline"><Link href={`/receipts/student/${id}`}>Receipt</Link></Button>
                       {onEdit && <Button size="sm" variant="outline" onClick={() => onEdit(row)}>Edit</Button>}
+                      {onDelete && <Button size="sm" variant="outline" className="border-red-200 text-red-700 hover:bg-red-50" disabled={deleting} onClick={() => void deleteStudents([row])} aria-label="Delete student"><Trash2 size={14} /></Button>}
                     </div>
                   </td>
                 </tr>
@@ -267,7 +282,6 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
         </table>
         {!visibleRows.length && <div className="p-8 text-center text-muted-foreground">No students match this filter.</div>}
       </div>
-      {promotionMessage && <p className="text-sm text-muted-foreground">{promotionMessage}</p>}
       {booksStudentId && onBooksChange && (() => {
         const student = rows.find((row) => String(row.id) === booksStudentId);
         if (!student) return null;

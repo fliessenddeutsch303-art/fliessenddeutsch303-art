@@ -28,5 +28,5 @@ export default async function AdminStudentsPage() {
       payments: paymentsByStudent.get(student.id) ?? [],
     };
   });
-  return <StudentManager initialStudents={rows as never} classes={classes.data ?? []} textbooks={textbooks.data ?? []} />;
+  return <StudentManager initialStudents={rows as never} classes={classes.data ?? []} textbooks={textbooks.data ?? []} canDelete />;
 }
