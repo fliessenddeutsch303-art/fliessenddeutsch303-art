@@ -38,3 +38,9 @@ export function matchesBilingualTagSearch(tags: string, query: string) {
   if (!queryVariants.length) return true;
   return queryVariants.some((part) => normalizedTags.includes(part));
 }
+
+/** Other spellings and translations of what was typed (e.g. "كهرباء" -> "electric"), for highlighting matches. */
+export function searchAliases(query: string) {
+  const normalized = normalize(query);
+  return normalized ? variants(query).filter((variant) => variant !== normalized) : [];
+}

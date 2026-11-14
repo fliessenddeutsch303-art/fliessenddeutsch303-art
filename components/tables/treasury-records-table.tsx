@@ -76,7 +76,7 @@ export function TreasuryRecordsTable({ rows: initialRows, labels }: { rows: Trea
   return (
     <div className="space-y-3">
       <div className="relative max-w-sm print:hidden">
-        <Input placeholder={labels.search} value={query} onChange={(event) => setQuery(event.target.value)} />
+        <Input data-search placeholder={labels.search} value={query} onChange={(event) => setQuery(event.target.value)} />
       </div>
       {message && <p role="status" className="text-sm text-muted-foreground">{message}</p>}
       <div className="overflow-x-auto rounded-lg border bg-white">

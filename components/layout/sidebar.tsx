@@ -2,6 +2,7 @@ import { LanguageToggle } from "@/components/layout/language-toggle";
 import { Logo } from "@/components/layout/logo";
 import { SignOutForm } from "@/components/layout/offline-sync-banner";
 import { ReminderNotifier } from "@/components/layout/reminder-notifier";
+import { SearchHighlighter } from "@/components/layout/search-highlighter";
 import { PersistentNavGroup } from "@/components/layout/persistent-nav-group";
 import { ActiveNavLink } from "@/components/layout/active-nav-link";
 import { PageHeaderContext } from "@/components/layout/page-header-context";
@@ -97,6 +98,7 @@ export function AppShell({ profile, children, lang }: { profile: UserProfile; ch
         <div className="min-w-0 p-3 sm:p-4 md:p-8">{children}</div>
       </main>
       <ReminderNotifier />
+      <SearchHighlighter />
     </div>
   );
 }

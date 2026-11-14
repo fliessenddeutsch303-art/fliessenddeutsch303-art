@@ -5,7 +5,8 @@ import Link from "next/link";
 import { BookOpen, CheckCircle2, Snowflake, Upload } from "lucide-react";
 import { StudentAttendanceCell } from "@/components/tables/student-attendance-cell";
 import { BookStatusBadge, StudentBooksDialog, bookSummary, type StudentBook, type TextbookOption } from "@/components/forms/student-books-dialog";
-import { Highlight, matchRanges } from "@/components/ui/highlight";
+import { matchRanges } from "@/lib/search-match";
+import type { StudentPayment } from "@/lib/student-payments";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,7 @@ function freezeStatus(row: Record<string, unknown>) {
 type PromotionClass = { id: string; name: string; level?: string | null };
 
 const booksOf = (row: Record<string, unknown>) => (Array.isArray(row.books) ? row.books : []) as StudentBook[];
+const paymentsOf = (row: Record<string, unknown>) => (Array.isArray(row.payments) ? row.payments : []) as StudentPayment[];
 
 export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewProfile = true, textbooks = [], onBooksChange }: { rows: Record<string, unknown>[]; classes?: PromotionClass[]; onEdit?: (row: Record<string, unknown>) => void; onPromote?: (student: Record<string, unknown>, classId: string) => Promise<{ ok: boolean; message: string }>; canViewProfile?: boolean; textbooks?: TextbookOption[]; onBooksChange?: (studentId: string, books: StudentBook[]) => void }) {
   const [nameQuery, setNameQuery] = useState("");
@@ -130,6 +132,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
         Status: row.status as string,
         Price: Number(row.total_price ?? 0),
         Paid: Number(row.amount_paid ?? 0),
+        "Payment dates": paymentsOf(row).map((payment) => `${payment.paid_at} (${payment.amount})`).join("; "),
         Balance: Math.max(0, Number(row.total_price ?? 0) - Number(row.amount_paid ?? 0)),
         Due: row.payment_due_date as string,
         Alert: Math.max(0, Number(row.total_price ?? 0) - Number(row.amount_paid ?? 0)) <= 0 ? "Paid" : String(row.payment_due_date ?? "") < academyDate() ? "Overdue" : String(row.payment_due_date ?? "") === academyDate() ? "Due today" : "Scheduled",
@@ -160,7 +163,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
   return (
     <div className="space-y-3">
       <div className="grid gap-3 md:grid-cols-[1fr_140px_160px_170px_170px_160px_160px_auto]">
-        <Input placeholder="Name or phone..." aria-label="Search by name or phone" value={nameQuery} onChange={(event) => setNameQuery(event.target.value)} />
+        <Input data-search placeholder="Name or phone..." aria-label="Search by name or phone" value={nameQuery} onChange={(event) => setNameQuery(event.target.value)} />
         <Select value={levelFilter} onChange={(event) => setLevelFilter(event.target.value)} aria-label="Level filter">
           <option value="">All levels</option>
           {levels.map((level) => <option key={level} value={level}>{level}</option>)}
@@ -173,7 +176,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
           <option value="">All classes</option>
           {classNames.map((name) => <option key={name} value={name}>{name}</option>)}
         </Select>
-        <Input placeholder="Tag..." value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} aria-label="Tag filter" />
+        <Input data-search placeholder="Tag..." value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} aria-label="Tag filter" />
         <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label="From date" />
         <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label="To date" />
         <Button type="button" variant="outline" onClick={exportStudents} disabled={!exportRows.length}>
@@ -198,8 +201,8 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
               return (
                 <tr key={id} className="border-t">
                   <td className="px-4 py-3 text-center"><input type="checkbox" checked={selected.has(id)} onChange={() => toggle(id)} /></td>
-                  <td className="min-w-[150px] whitespace-nowrap px-4 py-3"><Highlight text={String(row.full_name ?? "")} query={nameQuery} /></td>
-                  <td className="whitespace-nowrap px-4 py-3" dir="ltr"><Highlight text={String(row.phone ?? "")} query={nameQuery} digitsOnly /></td>
+                  <td className="min-w-[150px] whitespace-nowrap px-4 py-3">{String(row.full_name ?? "")}</td>
+                  <td className="whitespace-nowrap px-4 py-3" dir="ltr">{String(row.phone ?? "")}</td>
                   <td className="min-w-[190px] whitespace-nowrap px-4 py-3">{String(row.email ?? "")}</td>
                   <td className="whitespace-nowrap px-4 py-3">{String(row.level ?? "")}</td>
                   <td className="max-w-[180px] px-4 py-3 break-words">{tagsText(row)}</td>
@@ -212,7 +215,11 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
                   <td className="min-w-[120px] px-4 py-3">{teacherName(row)}</td>
                   <td className="whitespace-nowrap px-4 py-3">{row.learning_mode === "online" ? "Online" : "Offline"}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-center">{formatMoney(Number(row.total_price ?? 0))}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-center">{formatMoney(Number(row.amount_paid ?? 0))}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center">
+                    <div>{formatMoney(Number(row.amount_paid ?? 0))}</div>
+                    {paymentsOf(row).slice(0, 3).map((payment) => <div key={payment.id} className="text-xs text-muted-foreground" title={payment.receipt_no ?? undefined}>{payment.paid_at} · {formatMoney(payment.amount)}</div>)}
+                    {paymentsOf(row).length > 3 && <div className="text-xs text-muted-foreground">+{paymentsOf(row).length - 3} more</div>}
+                  </td>
                   <td className="whitespace-nowrap px-4 py-3 text-center">{formatMoney(Math.max(0, Number(row.total_price ?? 0) - Number(row.amount_paid ?? 0)))}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-center">{String(row.payment_due_date ?? "")}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-center">{paymentStatus(row)}</td>

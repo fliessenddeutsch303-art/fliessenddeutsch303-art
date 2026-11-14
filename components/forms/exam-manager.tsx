@@ -191,7 +191,7 @@ export function ExamManager({ rows, classes }: { rows: ExamRow[]; classes: Class
       <CardHeader><CardTitle>Student exams and level progression</CardTitle></CardHeader>
       <CardContent>
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <Input className="max-w-xs" placeholder="Search student..." value={query} onChange={(event) => setQuery(event.target.value)} />
+          <Input className="max-w-xs" data-search placeholder="Search student..." value={query} onChange={(event) => setQuery(event.target.value)} />
           <Select className="max-w-[180px]" value={takenFilter} onChange={(event) => setTakenFilter(event.target.value)}><option value="all">All test statuses</option><option value="taken">Taken</option><option value="not_taken">Not taken</option></Select>
           <Select className="max-w-[180px]" value={bookingFilter} onChange={(event) => setBookingFilter(event.target.value)}><option value="all">All bookings</option><option value="booked">Booked next level</option><option value="not_booked">Not booked</option></Select>
           <Button type="button" variant="outline" onClick={exportFiltered}><Upload size={16} /> Export filtered ({filteredRows.length})</Button>

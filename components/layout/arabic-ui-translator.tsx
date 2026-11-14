@@ -4,12 +4,12 @@ import { useEffect } from "react";
 import type { Lang } from "@/lib/i18n";
 
 const replacements: Array<[string, string]> = [
-  ["Name or phone", "الاسم أو رقم الهاتف"], ["Search by name or phone", "ابحث بالاسم أو رقم الهاتف"],
+  ["Name or phone", "الاسم أو رقم الهاتف"], ["Paid on", "تاريخ الدفع"], ["is recorded as a payment on this date", "تُسجَّل كدفعة بهذا التاريخ"], ["The new amount", "المبلغ الجديد"], ["The payment date cannot be in the future", "لا يمكن أن يكون تاريخ الدفع في المستقبل"], ["Payment dates", "تواريخ الدفع"], ["Search by name or phone", "ابحث بالاسم أو رقم الهاتف"],
   ["Will pay on a date", "سيدفع في موعد محدد"], ["Will pay on", "سيدفع في"], ["Other book, type the title", "كتاب آخر، اكتب اسم الكتاب"],
   ["Choose a book", "اختر كتابًا"], ["in stock", "في المخزون"], ["Received on", "تاريخ الاستلام"], ["Book price", "سعر الكتاب"],
   ["Book payment", "سداد الكتاب"], ["Book notes", "ملاحظات الكتاب"], ["Save book", "حفظ الكتاب"], ["Update book", "تحديث الكتاب"],
   ["Add book", "إضافة كتاب"], ["Edit book", "تعديل الكتاب"], ["Delete book", "حذف الكتاب"], ["No books yet", "لا توجد كتب بعد"],
-  ["Book saved", "تم حفظ الكتاب"], ["Book updated", "تم تحديث الكتاب"], ["Book deleted", "تم حذف الكتاب"], ["Paid on", "دُفع في"],
+  ["Book saved", "تم حفظ الكتاب"], ["Book updated", "تم تحديث الكتاب"], ["Book deleted", "تم حذف الكتاب"],
   ["Choose the date the student will pay", "اختر موعد سداد الطالب"], ["Choose the date the book was received", "اختر تاريخ استلام الكتاب"],
   ["Type the book title", "اكتب اسم الكتاب"], ["The price must be 0 or more", "يجب أن يكون السعر 0 أو أكثر"],
   ["This book shows 0 in stock", "هذا الكتاب رصيده 0 في المخزون"], ["Saving still records it; check the textbook inventory", "سيتم الحفظ، راجع مخزون الكتب"],
@@ -327,7 +327,11 @@ const replacements: Array<[string, string]> = [
   ["Received", "استلم"], ["Book", "الكتاب"], ["Unpaid", "غير مدفوع"], ["Books", "الكتب"], ["Close", "إغلاق"], ["Overdue", "متأخر"],
 ];
 
-const replacementPatterns = replacements.map(([english, arabic]) => [new RegExp(`\\b${english.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\\b`, "g"), arabic] as const);
+// Word boundaries only where the phrase starts/ends with a letter or digit: "\b" after "..." or ")" never matches.
+const replacementPatterns = replacements.map(([english, arabic]) => {
+  const escaped = english.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return [new RegExp(`${/^\w/.test(english) ? "\\b" : ""}${escaped}${/\w$/.test(english) ? "\\b" : ""}`, "g"), arabic] as const;
+});
 
 function translate(value: string) {
   if (!/[A-Za-z]/.test(value)) return value;

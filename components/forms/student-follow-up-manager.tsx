@@ -14,6 +14,7 @@ import type { Lang } from "@/lib/i18n";
 import { formatMoney, escapeHtml } from "@/lib/utils";
 import { exportExcel } from "@/lib/excel";
 import { academyDate } from "@/lib/dates";
+import { matchesBilingualTagSearch } from "@/lib/tag-search";
 
 type StudentFollowUp = {
   id: string;
@@ -197,7 +198,7 @@ export function StudentFollowUpManager({
       const matchesClass = !classFilter || student.class_id === classFilter;
       const matchesMode = !modeFilter || student.learning_mode === modeFilter;
       const matchesStatus = !statusFilter || student.status === statusFilter;
-      const matchesTag = !tag || (student.tags ?? []).some((item) => item.toLowerCase().includes(tag));
+      const matchesTag = !tag || matchesBilingualTagSearch((student.tags ?? []).join(", "), tag);
       const matchesAttendance = !attendanceFilter || attendance.status === attendanceFilter;
       return matchesQuery && matchesLevel && matchesTeacher && matchesClass && matchesMode && matchesStatus && matchesTag && matchesAttendance;
     });
@@ -430,13 +431,13 @@ export function StudentFollowUpManager({
       )}
 
       <div className="grid gap-2 md:grid-cols-4 lg:grid-cols-8">
-        <Input className="lg:col-span-2" placeholder={labels.search} value={query} onChange={(event) => setQuery(event.target.value)} />
+        <Input className="lg:col-span-2" data-search placeholder={labels.search} value={query} onChange={(event) => setQuery(event.target.value)} />
         <Select value={levelFilter} onChange={(event) => setLevelFilter(event.target.value)}><option value="">{labels.filterLevel}</option>{filterOptions.levels.map((item) => <option key={item} value={item}>{item}</option>)}</Select>
         <Select value={teacherFilter} onChange={(event) => setTeacherFilter(event.target.value)}><option value="">{labels.filterTeacher}</option>{filterOptions.teachers.map((item) => <option key={item} value={item}>{item}</option>)}</Select>
         <Select value={classFilter} onChange={(event) => setClassFilter(event.target.value)}><option value="">{labels.filterClass}</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>
         <Select value={modeFilter} onChange={(event) => setModeFilter(event.target.value)}><option value="">{labels.filterMode}</option><option value="online">{labels.online}</option><option value="offline">{labels.offline}</option></Select>
         <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">{labels.filterStatus}</option><option value="active">{labels.active}</option><option value="inactive">{labels.inactive}</option><option value="graduated">{labels.graduated}</option></Select>
-        <Input placeholder={labels.filterTag} value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} />
+        <Input data-search placeholder={labels.filterTag} value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} />
         <Select value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value)}><option value="">{labels.filterAttendance}</option><option value="regular">{labels.regular}</option><option value="at_risk">{labels.atRisk}</option><option value="skipping">{labels.skipping}</option><option value="no_records">{labels.noRecords}</option></Select>
       </div>
 

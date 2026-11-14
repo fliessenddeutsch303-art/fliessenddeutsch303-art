@@ -24,7 +24,7 @@ export function DataTable<T extends Record<string, unknown>>({ rows, columns, em
     <div className="space-y-3">
       <div className="relative max-w-sm print:hidden">
         <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input className="pl-9" placeholder={labels.search} value={query} onChange={(event) => setQuery(event.target.value)} />
+        <Input className="pl-9" data-search placeholder={labels.search} value={query} onChange={(event) => setQuery(event.target.value)} />
       </div>
       <div className="overflow-x-auto rounded-lg border bg-white">
         <table className="w-full min-w-max text-sm">
