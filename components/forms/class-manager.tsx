@@ -156,9 +156,13 @@ export function ClassManager({ initialClasses, teachers, lang = "en" }: { initia
     if (!teacherId) missing.push("Teacher");
     if (!level.trim()) missing.push("Level");
     if (!Object.keys(scheduleSlots).length || !Object.values(scheduleSlots).every(Boolean)) missing.push("Weekly schedule");
-    if (!capacity || Number(capacity) < 1) missing.push("Capacity");
-    if (!totalSessions || Number(totalSessions) < 0) missing.push("Total sessions");
-    if (!sessionsDone || Number(sessionsDone) < 0 || Number(sessionsDone) > Number(totalSessions)) missing.push("Sessions completed");
+    // Optional: empty capacity means no limit, empty session counts are saved as 0 (no total set yet).
+    const capacityValue = Number(capacity || 0);
+    const totalValue = Number(totalSessions || 0);
+    const doneValue = Number(sessionsDone || 0);
+    if (!Number.isFinite(capacityValue) || capacityValue < 0) missing.push("Capacity");
+    if (!Number.isFinite(totalValue) || totalValue < 0) missing.push("Total sessions");
+    if (!Number.isFinite(doneValue) || doneValue < 0 || (totalValue > 0 && doneValue > totalValue)) missing.push("Sessions completed");
     if (missing.length) {
       setInvalidFields(missing);
       setSaved(`Please complete: ${missing.join(", ")}.`);
@@ -166,7 +170,7 @@ export function ClassManager({ initialClasses, teachers, lang = "en" }: { initia
     }
     setInvalidFields([]);
     const schedule = weekDays.filter((day) => scheduleSlots[day]).map((day) => `${day} ${scheduleSlots[day]}`).join(" | ");
-    const payload = { name, teacher_id: teacherId || null, level, current_chapter: currentChapter, learning_mode: learningMode, schedule, capacity: Number(capacity), total_sessions: Number(totalSessions), sessions_done: Number(sessionsDone), class_status: classStatus };
+    const payload = { name, teacher_id: teacherId || null, level, current_chapter: currentChapter, learning_mode: learningMode, schedule, capacity: capacityValue, total_sessions: totalValue, sessions_done: doneValue, class_status: classStatus };
     const supabase = createSupabaseBrowserClient();
     if (editing) {
       const { error } = await supabase.from("classes").update(payload).eq("id", editing.id);
@@ -441,9 +445,9 @@ export function ClassManager({ initialClasses, teachers, lang = "en" }: { initia
                 ))}
               </div>
             </div>
-            <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Capacity")}</span><Input aria-required="true" className={requiredClass("Capacity")} type="number" min="1" value={capacity} onChange={(event) => setCapacity(event.target.value)} /></label>
-            <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Total sessions")}</span><Input aria-required="true" className={requiredClass("Total sessions")} type="number" min="0" value={totalSessions} onChange={(event) => setTotalSessions(event.target.value)} /></label>
-            <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Sessions completed")}</span><Input aria-required="true" className={requiredClass("Sessions completed")} type="number" min="0" max={totalSessions} value={sessionsDone} onChange={(event) => setSessionsDone(event.target.value)} /></label>
+            <label className="grid gap-1 text-sm"><span className="font-medium">Capacity</span><Input className={requiredClass("Capacity")} type="number" min="0" value={capacity} onChange={(event) => setCapacity(event.target.value)} /></label>
+            <label className="grid gap-1 text-sm"><span className="font-medium">Total sessions</span><Input className={requiredClass("Total sessions")} type="number" min="0" value={totalSessions} onChange={(event) => setTotalSessions(event.target.value)} /></label>
+            <label className="grid gap-1 text-sm"><span className="font-medium">Sessions completed</span><Input className={requiredClass("Sessions completed")} type="number" min="0" max={Number(totalSessions) > 0 ? totalSessions : undefined} value={sessionsDone} onChange={(event) => setSessionsDone(event.target.value)} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Group status</span><Select value={classStatus} onChange={(event) => setClassStatus(event.target.value)}>
               <option value="not_started">Not started</option>
               <option value="started">Started</option>

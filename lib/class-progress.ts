@@ -38,7 +38,8 @@ export async function refreshClassSessionProgress(supabase: SupabaseClient, clas
   const classStatus = String(classRow.class_status ?? (sessionsDone >= totalSessions && totalSessions > 0 ? "finished" : sessionsDone > 0 ? "started" : "not_started"));
   const alreadyCountedToday = Boolean(classRow.last_session_completed_date && classRow.last_session_completed_date >= date);
 
-  if (sessionQualified && !alreadyCountedToday && sessionsDone < totalSessions) {
+  // A class without a total (0) keeps counting; it just never auto-finishes.
+  if (sessionQualified && !alreadyCountedToday && (totalSessions === 0 || sessionsDone < totalSessions)) {
     const nextSessionsDone = sessionsDone + 1;
     const nextStatus = nextSessionsDone >= totalSessions && totalSessions > 0 ? "finished" : classStatus === "not_started" ? "started" : classStatus;
     // Only the caller that still sees the old sessions_done can win the update, so concurrent calls never count a day twice.
