@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Snowflake, Upload } from "lucide-react";
+import { BookOpen, CheckCircle2, Snowflake, Upload } from "lucide-react";
 import { StudentAttendanceCell } from "@/components/tables/student-attendance-cell";
+import { BookStatusBadge, StudentBooksDialog, bookSummary, type StudentBook, type TextbookOption } from "@/components/forms/student-books-dialog";
+import { Highlight, matchRanges } from "@/components/ui/highlight";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +48,9 @@ function freezeStatus(row: Record<string, unknown>) {
 
 type PromotionClass = { id: string; name: string; level?: string | null };
 
-export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewProfile = true }: { rows: Record<string, unknown>[]; classes?: PromotionClass[]; onEdit?: (row: Record<string, unknown>) => void; onPromote?: (student: Record<string, unknown>, classId: string) => Promise<{ ok: boolean; message: string }>; canViewProfile?: boolean }) {
+const booksOf = (row: Record<string, unknown>) => (Array.isArray(row.books) ? row.books : []) as StudentBook[];
+
+export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewProfile = true, textbooks = [], onBooksChange }: { rows: Record<string, unknown>[]; classes?: PromotionClass[]; onEdit?: (row: Record<string, unknown>) => void; onPromote?: (student: Record<string, unknown>, classId: string) => Promise<{ ok: boolean; message: string }>; canViewProfile?: boolean; textbooks?: TextbookOption[]; onBooksChange?: (studentId: string, books: StudentBook[]) => void }) {
   const [nameQuery, setNameQuery] = useState("");
   const [levelFilter, setLevelFilter] = useState("");
   const [teacherFilter, setTeacherFilter] = useState("");
@@ -58,17 +62,20 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const [promotionClassId, setPromotionClassId] = useState("");
   const [promotionMessage, setPromotionMessage] = useState("");
+  const [booksStudentId, setBooksStudentId] = useState<string | null>(null);
+  const [stock, setStock] = useState(textbooks);
 
   const levels = useMemo(() => [...new Set(rows.map((row) => String(row.level ?? "")).filter(Boolean))].sort(), [rows]);
   const teachers = useMemo(() => [...new Set(rows.map(teacherName).filter(Boolean))].sort(), [rows]);
   const classNames = useMemo(() => [...new Set(rows.map(className).filter(Boolean))].sort(), [rows]);
 
   const visibleRows = useMemo(() => {
-    const q = nameQuery.toLowerCase();
+    const q = nameQuery.trim();
     const tagQuery = tagFilter.toLowerCase().trim();
     return rows.filter((row) => {
       const rowDate = String(row.enrolled_at ?? row.created_at ?? "").slice(0, 10);
-      const matchesName = !q || String(row.full_name ?? "").toLowerCase().includes(q);
+      // One box searches the name and, by digits only, the phone number.
+      const matchesName = !q || matchRanges(String(row.full_name ?? ""), q).length > 0 || matchRanges(String(row.phone ?? ""), q, true).length > 0;
       const matchesLevel = !levelFilter || String(row.level ?? "") === levelFilter;
       const matchesTeacher = !teacherFilter || teacherName(row) === teacherFilter;
       const matchesClass = !classFilter || className(row) === classFilter;
@@ -127,6 +134,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
         Due: row.payment_due_date as string,
         Alert: Math.max(0, Number(row.total_price ?? 0) - Number(row.amount_paid ?? 0)) <= 0 ? "Paid" : String(row.payment_due_date ?? "") < academyDate() ? "Overdue" : String(row.payment_due_date ?? "") === academyDate() ? "Due today" : "Scheduled",
         Comment: row.payment_comment as string,
+        Books: booksOf(row).map(bookSummary).join("; "),
         "Freeze start": row.freeze_start_date as string,
         "Freeze months": Number(row.freeze_months ?? 0),
         "Freeze end": row.freeze_end_date as string,
@@ -152,7 +160,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
   return (
     <div className="space-y-3">
       <div className="grid gap-3 md:grid-cols-[1fr_140px_160px_170px_170px_160px_160px_auto]">
-        <Input placeholder="Student name..." value={nameQuery} onChange={(event) => setNameQuery(event.target.value)} />
+        <Input placeholder="Name or phone..." aria-label="Search by name or phone" value={nameQuery} onChange={(event) => setNameQuery(event.target.value)} />
         <Select value={levelFilter} onChange={(event) => setLevelFilter(event.target.value)} aria-label="Level filter">
           <option value="">All levels</option>
           {levels.map((level) => <option key={level} value={level}>{level}</option>)}
@@ -175,11 +183,11 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
       </div>
 
       <div className="max-h-[70vh] overflow-auto rounded-lg border bg-white">
-        <table dir="rtl" className="w-full min-w-[1680px] text-right text-sm [&_th]:align-middle [&_td]:align-middle">
+        <table dir="rtl" className="w-full min-w-[1900px] text-right text-sm [&_th]:align-middle [&_td]:align-middle">
           <thead className="sticky top-0 z-10 bg-muted">
             <tr>
               <th className="px-4 py-3 text-center"><input type="checkbox" checked={visibleRows.length > 0 && visibleRows.every((row) => selected.has(String(row.id)))} onChange={toggleAll} /></th>
-              {["Name", "Phone", "Email", "Level", "Tags", "Class", "Teacher", "Online / Offline", "Price", "Paid", "Not Paid", "Payment Date", "Alert", "Freeze started", "Freeze finished", "Freeze status", "Finished / Stopped", "Comment", "Status", "Attendance", "Actions"].map((header) => (
+              {["Name", "Phone", "Email", "Level", "Tags", "Class", "Teacher", "Online / Offline", "Price", "Paid", "Not Paid", "Payment Date", "Alert", "Books", "Freeze started", "Freeze finished", "Freeze status", "Finished / Stopped", "Comment", "Status", "Attendance", "Actions"].map((header) => (
                 <th key={header} className="px-4 py-3 text-right font-semibold">{header}</th>
               ))}
             </tr>
@@ -190,8 +198,8 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
               return (
                 <tr key={id} className="border-t">
                   <td className="px-4 py-3 text-center"><input type="checkbox" checked={selected.has(id)} onChange={() => toggle(id)} /></td>
-                  <td className="min-w-[150px] whitespace-nowrap px-4 py-3">{String(row.full_name ?? "")}</td>
-                  <td className="whitespace-nowrap px-4 py-3">{String(row.phone ?? "")}</td>
+                  <td className="min-w-[150px] whitespace-nowrap px-4 py-3"><Highlight text={String(row.full_name ?? "")} query={nameQuery} /></td>
+                  <td className="whitespace-nowrap px-4 py-3" dir="ltr"><Highlight text={String(row.phone ?? "")} query={nameQuery} digitsOnly /></td>
                   <td className="min-w-[190px] whitespace-nowrap px-4 py-3">{String(row.email ?? "")}</td>
                   <td className="whitespace-nowrap px-4 py-3">{String(row.level ?? "")}</td>
                   <td className="max-w-[180px] px-4 py-3 break-words">{tagsText(row)}</td>
@@ -208,6 +216,12 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
                   <td className="whitespace-nowrap px-4 py-3 text-center">{formatMoney(Math.max(0, Number(row.total_price ?? 0) - Number(row.amount_paid ?? 0)))}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-center">{String(row.payment_due_date ?? "")}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-center">{paymentStatus(row)}</td>
+                  <td className="min-w-[220px] px-4 py-3">
+                    <div className="flex flex-col items-start gap-1">
+                      {booksOf(row).map((book) => <span key={book.id} className="flex flex-wrap items-center gap-1 text-xs"><span className="font-medium">{book.title}</span><BookStatusBadge book={book} /></span>)}
+                      {onBooksChange && <Button type="button" size="sm" variant="outline" onClick={() => setBooksStudentId(id)}><BookOpen size={14} /> Books{booksOf(row).length ? ` (${booksOf(row).length})` : ""}</Button>}
+                    </div>
+                  </td>
                   <td className="whitespace-nowrap px-4 py-3 text-center">{String(row.freeze_start_date ?? "")}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-center">{String(row.freeze_end_date ?? "")}</td>
                   <td className="px-4 py-3">{freezeStatus(row) === "active" ? <Badge className="border-blue-200 bg-blue-50 text-blue-700"><Snowflake size={15} /> Active</Badge> : freezeStatus(row) === "expired" ? <Badge className="border-red-200 bg-red-50 text-red-700">Expired</Badge> : ""}</td>
@@ -230,6 +244,11 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
         {!visibleRows.length && <div className="p-8 text-center text-muted-foreground">No students match this filter.</div>}
       </div>
       {promotionMessage && <p className="text-sm text-muted-foreground">{promotionMessage}</p>}
+      {booksStudentId && onBooksChange && (() => {
+        const student = rows.find((row) => String(row.id) === booksStudentId);
+        if (!student) return null;
+        return <StudentBooksDialog student={{ id: booksStudentId, full_name: String(student.full_name ?? "") }} books={booksOf(student)} textbooks={stock} onStockChange={setStock} onClose={() => setBooksStudentId(null)} onChange={(books) => onBooksChange(booksStudentId, books)} />;
+      })()}
       {promotingStudent && onPromote && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 p-4" role="dialog" aria-modal="true" aria-labelledby="promote-student-title">
           <div className="w-full max-w-md rounded-lg border border-accent bg-white p-5 shadow-2xl">

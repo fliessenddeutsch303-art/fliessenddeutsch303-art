@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { StudentExcelTools } from "@/components/forms/student-excel-tools";
 import { StudentsTable } from "@/components/tables/students-table";
+import type { StudentBook, TextbookOption } from "@/components/forms/student-books-dialog";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { recordAudit } from "@/lib/audit";
 import { academyDate } from "@/lib/dates";
@@ -38,6 +39,7 @@ type StudentRow = {
   enrolled_at?: string | null;
   created_at?: string | null;
   classes?: { id?: string; name?: string; level?: string | null; teachers?: { name?: string } | null } | null;
+  books?: StudentBook[];
 };
 
 const blank = {
@@ -59,7 +61,7 @@ const blank = {
   level_completed_stopped: "false",
 };
 
-export function StudentManager({ initialStudents, classes, canViewProfile = true }: { initialStudents: StudentRow[]; classes: ClassOption[]; canViewProfile?: boolean }) {
+export function StudentManager({ initialStudents, classes, canViewProfile = true, textbooks = [] }: { initialStudents: StudentRow[]; classes: ClassOption[]; canViewProfile?: boolean; textbooks?: TextbookOption[] }) {
   const [students, setStudents] = useState(initialStudents);
   const [editing, setEditing] = useState<StudentRow | null>(null);
   const [form, setForm] = useState(blank);
@@ -245,7 +247,7 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
           </form>
         </CardContent>
       </Card>
-      <StudentsTable rows={students as unknown as Record<string, unknown>[]} classes={classes} onEdit={(row) => startEdit(row as unknown as StudentRow)} onPromote={promoteStudent} canViewProfile={canViewProfile} />
+      <StudentsTable rows={students as unknown as Record<string, unknown>[]} classes={classes} onEdit={(row) => startEdit(row as unknown as StudentRow)} onPromote={promoteStudent} canViewProfile={canViewProfile} textbooks={textbooks} onBooksChange={(studentId, books) => setStudents((rows) => rows.map((row) => row.id === studentId ? { ...row, books } : row))} />
     </div>
   );
 }
