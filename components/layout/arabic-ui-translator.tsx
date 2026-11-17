@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import type { Lang } from "@/lib/i18n";
 
 const replacements: Array<[string, string]> = [
+  ["Report import and export", "استيراد وتصدير التقارير"], ["Sales KPIs", "مؤشرات أداء المبيعات"], ["Export selected report", "تصدير التقرير المحدد"], ["Import selected report", "استيراد التقرير المحدد"], ["Export all reports", "تصدير كل التقارير"], ["Course and payment reports", "تقارير الفصول والمدفوعات"], ["Campaign performance", "أداء الحملات"], ["Summary", "الملخص"], ["Use live data again", "استخدام البيانات الحية مرة أخرى"], ["Exports of this section use an imported file, not live data. Live operational records remain unchanged", "تصدير هذا القسم يستخدم ملفًا مستوردًا وليس البيانات الحية. السجلات الفعلية لم تتغير"],
   ["Name or phone", "الاسم أو رقم الهاتف"], ["Paid on", "تاريخ الدفع"], ["is recorded as a payment on this date", "تُسجَّل كدفعة بهذا التاريخ"], ["The new amount", "المبلغ الجديد"], ["The payment date cannot be in the future", "لا يمكن أن يكون تاريخ الدفع في المستقبل"], ["Payment dates", "تواريخ الدفع"], ["Trial session done", "حضر الحصة التجريبية"], ["Waiting for level", "في انتظار مستوى"], ["Waiting since", "في الانتظار منذ"], ["Trial class", "فصل الحصة التجريبية"], ["Trial date", "تاريخ الحصة التجريبية"], ["Choose the class", "اختر الفصل"], ["since", "منذ"], ["Trial session", "حصة تجريبية"], ["Trial", "تجريبية"], ["Waiting", "قائمة الانتظار"], ["Session length (hours)", "مدة الحصة (ساعات)"], ["Used for teacher hours in payroll", "تُستخدم لحساب ساعات المدرس في المرتبات"], ["Class taught", "الفصل الذي درّسه"], ["Another class", "فصل آخر"], ["Add another class", "إضافة فصل آخر"], ["Choose class", "اختر الفصل"], ["Other classes", "فصول أخرى"], ["Hours from classes", "الساعات من الفصول"], ["No session length set for", "لم يتم تحديد مدة الحصة لـ"], ["Set it in Classes, until then hours come from check-in and check-out", "حددها من صفحة الفصول، وحتى ذلك تُحسب الساعات من الحضور والانصراف"], ["Remove class", "إزالة الفصل"], ["counted from the classes' session length", "محسوبة من مدة حصص الفصول"], ["Delete selected", "حذف المحدد"], ["Delete student", "حذف الطالب"], ["Students deleted", "تم حذف الطلاب"], ["Could not reach the server, nothing was deleted", "تعذر الاتصال بالخادم، لم يتم حذف شيء"], ["Date of earlier payment", "تاريخ الدفعة السابقة"], ["of the amount paid has no date yet", "من المبلغ المدفوع بدون تاريخ"], ["Optional", "اختياري"], ["recorded as paid on", "سُجّل كمدفوع في"], ["without a date", "بدون تاريخ"], ["No date", "بدون تاريخ"], ["pay later", "سيدفع لاحقًا"], ["unpaid", "غير مدفوع"], ["Search by name or phone", "ابحث بالاسم أو رقم الهاتف"],
   ["Will pay on a date", "سيدفع في موعد محدد"], ["Will pay on", "سيدفع في"], ["Other book, type the title", "كتاب آخر، اكتب اسم الكتاب"],
   ["Choose a book", "اختر كتابًا"], ["in stock", "في المخزون"], ["Received on", "تاريخ الاستلام"], ["Book price", "سعر الكتاب"],
@@ -25,7 +26,7 @@ const replacements: Array<[string, string]> = [
   ["Exam / Placement Booking", "حجز الاختبارات / تحديد المستوى"], ["Exam", "اختبار"], ["Save Exam", "حفظ الاختبار"],
   ["Level determination", "تحديد المستوى"], ["Quiz", "اختبار قصير"], ["Main test", "الاختبار الرئيسي"], ["Passed", "ناجح"], ["Failed", "راسب"],
   ["Book next level", "حجز المستوى التالي"], ["Print selected", "طباعة المحدد"], ["Export promotion candidates", "تصدير المرشحين للانتقال"],
-  ["Report import and export", "استيراد وتصدير التقارير"], ["Export selected report", "تصدير التقرير المحدد"], ["Export all reports", "تصدير كل التقارير"],
+  ["Report import and export", "استيراد وتصدير التقارير"], ["Sales KPIs", "مؤشرات أداء المبيعات"], ["Export selected report", "تصدير التقرير المحدد"], ["Export all reports", "تصدير كل التقارير"],
   ["The selected file has no report rows.", "الملف المحدد لا يحتوي على صفوف تقرير."], ["Live operational records remain unchanged.", "تظل سجلات التشغيل الفعلية بدون تغيير."],
   ["Books needing order", "كتب تحتاج إلى طلب"], ["Order date", "تاريخ الطلب"], ["Delivery date", "تاريخ التسليم"], ["On hand", "المتاح"], ["Needed", "المطلوب"], ["Ordered", "تم طلبه"],
   ["Supplier", "المورد"], ["Edition", "الإصدار"], ["Book title", "اسم الكتاب"], ["Expected delivery date", "تاريخ التسليم المتوقع"], ["Save textbook", "حفظ الكتاب"],
@@ -363,7 +364,7 @@ function translateTree(root: ParentNode) {
   while ((node = walker.nextNode())) nodes.push(node as Text);
   for (const textNode of nodes) {
     const parent = textNode.parentElement;
-    if (!parent || ["SCRIPT", "STYLE", "NOSCRIPT"].includes(parent.tagName)) continue;
+    if (!parent || ["SCRIPT", "STYLE", "NOSCRIPT"].includes(parent.tagName) || parent.closest("[translate=no]")) continue;
     const next = translate(textNode.nodeValue ?? "");
     if (next !== textNode.nodeValue) textNode.nodeValue = next;
   }

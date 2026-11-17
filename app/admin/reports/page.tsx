@@ -11,9 +11,98 @@ import { getCurrentLanguage } from "@/lib/i18n-server";
 import { loadMoney, moneyTotals } from "@/lib/revenue";
 
 
+const EN = {
+  "dailyRevenue": "Daily revenue",
+  "dailyExpenses": "Daily expenses",
+  "dailyProfit": "Daily profit",
+  "monthlyRevenue": "Monthly revenue",
+  "monthlyExpenses": "Monthly expenses",
+  "monthlyProfit": "Monthly profit",
+  "waiting": "Students waiting",
+  "trials": "Trial sessions this month",
+  "books": "Books handed out this month",
+  "bookings": "Bookings today / month",
+  "followups": "Follow-ups today / month",
+  "studentAttendance": "Student attendance today",
+  "teacherAttendance": "Teachers checked in today",
+  "treasury": "Treasury",
+  "studentPayments": "Student payments",
+  "bookPayments": "Books",
+  "courseReports": "Course and payment reports",
+  "course": "Course",
+  "attendance": "Attendance",
+  "paid": "Paid",
+  "scheduled": "Scheduled / unpaid",
+  "paymentRecords": "Payment records",
+  "enrolments": "New enrolments (month)",
+  "salesKpis": "Sales KPIs",
+  "salesEmployee": "Sales employee",
+  "dailyFollowups": "Daily follow-ups",
+  "monthlyFollowups": "Monthly follow-ups",
+  "monthlyBookings": "Monthly bookings",
+  "interestedNew": "Interested (new leads this month)",
+  "notInterestedNew": "Not interested (new leads this month)",
+  "noAnswerNew": "No answer (new leads this month)",
+  "campaigns": "Campaign performance",
+  "campaign": "Campaign",
+  "totalLeads": "Total leads (all time)",
+  "leadsMonth": "Leads created this month",
+  "interestedMonth": "Interested (this month)",
+  "bookedMonth": "Booked (this month)",
+  "notInterestedMonth": "Not interested (this month)",
+  "noAnswerMonth": "No answer (this month)",
+  "noteTitle": "Needs client confirmation",
+  "note": "KPI weights and the exact employee performance formula are shown as raw counts for now. They can become scored KPIs once the rules are confirmed."
+};
+
+const AR: typeof EN = {
+  "dailyRevenue": "إيرادات اليوم",
+  "dailyExpenses": "مصروفات اليوم",
+  "dailyProfit": "ربح اليوم",
+  "monthlyRevenue": "إيرادات الشهر",
+  "monthlyExpenses": "مصروفات الشهر",
+  "monthlyProfit": "ربح الشهر",
+  "waiting": "طلاب في قائمة الانتظار",
+  "trials": "حصص تجريبية هذا الشهر",
+  "books": "كتب تم تسليمها هذا الشهر",
+  "bookings": "الحجوزات اليوم / الشهر",
+  "followups": "المتابعات اليوم / الشهر",
+  "studentAttendance": "حضور الطلاب اليوم",
+  "teacherAttendance": "المدرسون الحاضرون اليوم",
+  "treasury": "الخزينة",
+  "studentPayments": "مدفوعات الطلاب",
+  "bookPayments": "الكتب",
+  "courseReports": "تقارير الفصول والمدفوعات",
+  "course": "الفصل",
+  "attendance": "الحضور",
+  "paid": "مدفوع",
+  "scheduled": "مجدول / غير مدفوع",
+  "paymentRecords": "سجلات الدفع",
+  "enrolments": "تسجيلات جديدة (الشهر)",
+  "salesKpis": "مؤشرات أداء المبيعات",
+  "salesEmployee": "موظف المبيعات",
+  "dailyFollowups": "متابعات اليوم",
+  "monthlyFollowups": "متابعات الشهر",
+  "monthlyBookings": "حجوزات الشهر",
+  "interestedNew": "مهتم (عملاء جدد هذا الشهر)",
+  "notInterestedNew": "غير مهتم (عملاء جدد هذا الشهر)",
+  "noAnswerNew": "لا يرد (عملاء جدد هذا الشهر)",
+  "campaigns": "أداء الحملات",
+  "campaign": "الحملة",
+  "totalLeads": "إجمالي العملاء (كل الوقت)",
+  "leadsMonth": "عملاء أُضيفوا هذا الشهر",
+  "interestedMonth": "مهتم (هذا الشهر)",
+  "bookedMonth": "حجز (هذا الشهر)",
+  "notInterestedMonth": "غير مهتم (هذا الشهر)",
+  "noAnswerMonth": "لا يرد (هذا الشهر)",
+  "noteTitle": "بانتظار تأكيد العميل",
+  "note": "أوزان مؤشرات الأداء ومعادلة تقييم الموظفين معروضة حاليًا كأعداد فقط، ويمكن تحويلها إلى درجات بعد تأكيد القواعد."
+};
+
 export default async function ReportsPage() {
   const { supabase } = await getCurrentUser("admin");
   const lang = await getCurrentLanguage();
+  const L = lang === "ar" ? AR : EN;
   const today = academyDate();
   const monthStart = academyMonthStart();
   const monthStartIso = academyDayStartIso(monthStart);
@@ -39,7 +128,7 @@ export default async function ReportsPage() {
 
   const day = moneyTotals(money.entries, (date) => date === today);
   const month = moneyTotals(money.entries, (date) => date >= monthStart);
-  const breakdown = (totals: typeof day) => `Treasury ${formatMoney(totals.treasuryIncome)} · Student payments ${formatMoney(totals.studentPayments)} · Books ${formatMoney(totals.books)}`;
+  const breakdown = (totals: typeof day) => `${L.treasury} ${formatMoney(totals.treasuryIncome)} · ${L.studentPayments} ${formatMoney(totals.studentPayments)} · ${L.bookPayments} ${formatMoney(totals.books)}`;
 
   const dailyAttendance = (attendance.data ?? []).filter((row) => row.date === today);
   const monthlyAttendance = (attendance.data ?? []).filter((row) => row.date >= monthStart);
@@ -89,19 +178,19 @@ export default async function ReportsPage() {
   });
 
   const cards: Array<[string, string, string?]> = [
-    ["Daily revenue", formatMoney(day.income), breakdown(day)],
-    ["Daily expenses", formatMoney(day.expenses)],
-    ["Daily profit", formatMoney(day.profit)],
-    ["Monthly revenue", formatMoney(month.income), breakdown(month)],
-    ["Monthly expenses", formatMoney(month.expenses)],
-    ["Monthly profit", formatMoney(month.profit)],
-    ["Students waiting", String(waitingStudents.count ?? 0)],
-    ["Trial sessions this month", String(trials.count ?? 0)],
-    ["Books handed out this month", String(booksGiven.count ?? 0)],
-    ["Bookings today / month", `${dailyBookings.length} / ${monthlyBookings.length}`],
-    ["Follow-ups today / month", `${dailyFollowups.length} / ${monthlyFollowups.length}`],
-    ["Student attendance today", `${dailyAttendance.filter((row) => row.status === "present" || row.status === "late").length} / ${dailyAttendance.length}`],
-    ["Teacher attendance today", `${(teacherAttendance.data ?? []).filter((row) => row.date === today && row.check_in).length}`],
+    [L.dailyRevenue, formatMoney(day.income), breakdown(day)],
+    [L.dailyExpenses, formatMoney(day.expenses)],
+    [L.dailyProfit, formatMoney(day.profit)],
+    [L.monthlyRevenue, formatMoney(month.income), breakdown(month)],
+    [L.monthlyExpenses, formatMoney(month.expenses)],
+    [L.monthlyProfit, formatMoney(month.profit)],
+    [L.waiting, String(waitingStudents.count ?? 0)],
+    [L.trials, String(trials.count ?? 0)],
+    [L.books, String(booksGiven.count ?? 0)],
+    [L.bookings, `${dailyBookings.length} / ${monthlyBookings.length}`],
+    [L.followups, `${dailyFollowups.length} / ${monthlyFollowups.length}`],
+    [L.studentAttendance, `${dailyAttendance.filter((row) => row.status === "present" || row.status === "late").length} / ${dailyAttendance.length}`],
+    [L.teacherAttendance, `${(teacherAttendance.data ?? []).filter((row) => row.date === today && row.check_in).length}`],
   ];
 
   const reportData = {
@@ -118,10 +207,10 @@ export default async function ReportsPage() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {cards.map(([label, value, note]) => <Card key={label}><CardHeader><CardTitle className="text-sm text-muted-foreground">{label}</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold">{value}</p>{note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}</CardContent></Card>)}
       </div>
-      <Card><CardHeader><CardTitle>Course and payment reports</CardTitle></CardHeader><CardContent><DataTable rows={courseRows} columns={[{ key: "course", header: "Course" }, { key: "attendance_rate", header: "Attendance" }, { key: "accounts_paid", header: "Paid" }, { key: "accounts_scheduled", header: "Scheduled / unpaid" }, { key: "payment_records", header: "Payment records" }, { key: "enrolments", header: "New enrolments (month)" }]} /></CardContent></Card>
-      <Card><CardHeader><CardTitle>Sales KPIs</CardTitle></CardHeader><CardContent><DataTable rows={salesRows} columns={[{ key: "sales", header: "Sales employee" }, { key: "daily_followups", header: "Daily follow-ups" }, { key: "monthly_followups", header: "Monthly follow-ups" }, { key: "monthly_bookings", header: "Monthly bookings" }, { key: "interested", header: "Interested (new leads this month)" }, { key: "not_interested", header: "Not interested (new leads this month)" }, { key: "no_answer", header: "No answer (new leads this month)" }]} /></CardContent></Card>
-      <Card><CardHeader><CardTitle>Campaign performance</CardTitle></CardHeader><CardContent><DataTable rows={campaignRows} columns={[{ key: "campaign", header: "Campaign" }, { key: "total_leads", header: "Total leads (all time)" }, { key: "leads", header: "Leads created this month" }, { key: "interested", header: "Interested (this month)" }, { key: "booked", header: "Booked (this month)" }, { key: "not_interested", header: "Not interested (this month)" }, { key: "no_answer", header: "No answer (this month)" }]} /></CardContent></Card>
-      <Card><CardHeader><CardTitle>Needs client confirmation</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">KPI weights and exact employee performance formula are shown as raw counts for now. We can turn them into scored KPIs once the client confirms the rules.</CardContent></Card>
+      <Card><CardHeader><CardTitle>{L.courseReports}</CardTitle></CardHeader><CardContent><DataTable rows={courseRows} columns={[{ key: "course", header: L.course }, { key: "attendance_rate", header: L.attendance }, { key: "accounts_paid", header: L.paid }, { key: "accounts_scheduled", header: L.scheduled }, { key: "payment_records", header: L.paymentRecords }, { key: "enrolments", header: L.enrolments }]} /></CardContent></Card>
+      <Card><CardHeader><CardTitle>{L.salesKpis}</CardTitle></CardHeader><CardContent><DataTable rows={salesRows} columns={[{ key: "sales", header: L.salesEmployee }, { key: "daily_followups", header: L.dailyFollowups }, { key: "monthly_followups", header: L.monthlyFollowups }, { key: "monthly_bookings", header: L.monthlyBookings }, { key: "interested", header: L.interestedNew }, { key: "not_interested", header: L.notInterestedNew }, { key: "no_answer", header: L.noAnswerNew }]} /></CardContent></Card>
+      <Card><CardHeader><CardTitle>{L.campaigns}</CardTitle></CardHeader><CardContent><DataTable rows={campaignRows} columns={[{ key: "campaign", header: L.campaign }, { key: "total_leads", header: L.totalLeads }, { key: "leads", header: L.leadsMonth }, { key: "interested", header: L.interestedMonth }, { key: "booked", header: L.bookedMonth }, { key: "not_interested", header: L.notInterestedMonth }, { key: "no_answer", header: L.noAnswerMonth }]} /></CardContent></Card>
+      <Card><CardHeader><CardTitle>{L.noteTitle}</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">{L.note}</CardContent></Card>
     </div>
   );
 }

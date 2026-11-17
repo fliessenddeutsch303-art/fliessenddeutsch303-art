@@ -11,5 +11,5 @@ export default async function TreasuryPage() {
   const t = dictionaries[lang].treasuryPage;
   const { data } = await fetchAll((from, to) => supabase.from("treasury_records").select("*").order("date", { ascending: false }).order("id").range(from, to));
   const rows = (data ?? []).map((row) => ({ ...row, type: row.type === "income" ? t.income : t.expense, type_value: row.type })) as unknown as Array<Record<string, unknown> & { id: string; type_value: "income" | "expense" }>;
-  return <div className="space-y-6"><TreasuryForm labels={t} /><TreasuryRecordsTable rows={rows} labels={t} canDelete /></div>;
+  return <div className="space-y-6"><TreasuryForm labels={t} /><TreasuryRecordsTable rows={rows} labels={t} canDelete canViewMonth /></div>;
 }

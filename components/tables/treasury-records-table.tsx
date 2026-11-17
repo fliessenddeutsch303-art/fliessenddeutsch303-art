@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Edit2, Trash2, X } from "lucide-react";
+import { Check, Edit2, FileDown, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,9 @@ type TreasuryTableLabels = {
   totalOut: string;
   net: string;
   dailyBreakdown: string;
+  monthlyBreakdown: string;
+  wholeMonth: string;
+  exportPdf: string;
   allDates: string;
   day: string;
   delete: string;
@@ -37,10 +40,12 @@ type TreasuryTableLabels = {
   confirmDelete: string;
 };
 
-export function TreasuryRecordsTable({ rows: initialRows, labels, canDelete = false }: { rows: TreasuryRow[]; labels: TreasuryTableLabels; canDelete?: boolean }) {
+export function TreasuryRecordsTable({ rows: initialRows, labels, canDelete = false, canViewMonth = false }: { rows: TreasuryRow[]; labels: TreasuryTableLabels; canDelete?: boolean; canViewMonth?: boolean }) {
   const [rows, setRows] = useState(initialRows);
   const [query, setQuery] = useState("");
   const [day, setDay] = useState(academyDate());
+  // admin only: whole month instead of one day
+  const [month, setMonth] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ type: "income" as "income" | "expense", amount: "", category: "", date: "", description: "" });
   const [message, setMessage] = useState("");
@@ -48,7 +53,7 @@ export function TreasuryRecordsTable({ rows: initialRows, labels, canDelete = fa
   // new rows arrive through router.refresh() after the form saves
   useEffect(() => setRows(initialRows), [initialRows]);
 
-  const dayRows = useMemo(() => day ? rows.filter((row) => row.date === day) : rows, [day, rows]);
+  const dayRows = useMemo(() => month ? rows.filter((row) => String(row.date ?? "").startsWith(month)) : day ? rows.filter((row) => row.date === day) : rows, [day, month, rows]);
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return q ? dayRows.filter((row) => JSON.stringify(row).toLowerCase().includes(q)) : dayRows;
@@ -110,10 +115,14 @@ export function TreasuryRecordsTable({ rows: initialRows, labels, canDelete = fa
     <div className="space-y-4">
       <Card>
         <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
-          <CardTitle>{labels.dailyBreakdown}{day ? ` · ${day}` : ` · ${labels.allDates}`}</CardTitle>
-          <div className="flex items-center gap-2">
-            <Input className="w-44" type="date" value={day} onChange={(event) => setDay(event.target.value)} aria-label={labels.day} />
-            <Button type="button" variant={day ? "outline" : "default"} onClick={() => setDay("")}>{labels.allDates}</Button>
+          <CardTitle>{month ? `${labels.monthlyBreakdown} · ${month}` : `${labels.dailyBreakdown} · ${day || labels.allDates}`}</CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input className="w-44" type="date" value={month ? "" : day} onChange={(event) => { setMonth(""); setDay(event.target.value); }} aria-label={labels.day} />
+            {canViewMonth && (month
+              ? <Input className="w-44" type="month" value={month} onChange={(event) => setMonth(event.target.value || academyDate().slice(0, 7))} aria-label={labels.wholeMonth} />
+              : <Button type="button" variant="outline" onClick={() => setMonth((day || academyDate()).slice(0, 7))}>{labels.wholeMonth}</Button>)}
+            {canViewMonth && month && <Button asChild type="button"><a href={`/print/treasury?month=${month}&print=1`} target="_blank" rel="noopener"><FileDown size={16} /> {labels.exportPdf}</a></Button>}
+            <Button type="button" variant={!day && !month ? "default" : "outline"} onClick={() => { setMonth(""); setDay(""); }}>{labels.allDates}</Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
