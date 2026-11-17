@@ -14,13 +14,13 @@ const EN = {
   title: "Monthly treasury report", month: "Month", generated: "Generated", print: "Download PDF", back: "Back to treasury",
   income: "Total income", expenses: "Total expenses", profit: "Net profit", treasury: "Treasury income", studentPayments: "Student payments", books: "Books",
   daily: "Daily totals", date: "Date", categories: "By category", category: "Category", entries: "Treasury entries", type: "Type", amount: "Amount", description: "Description",
-  incomeType: "Income", expenseType: "Expense", net: "Net", total: "Total", from: "from", to: "to", none: "No entries this month.", page: "Fließend Deutsch Academy",
+  incomeType: "Income", expenseType: "Expense", net: "Net", total: "Total", from: "from", to: "to", incomeRows: "Income entries", expenseRows: "Expense entries", subtotal: "Subtotal", enteredBy: "Entered by", forWhat: "Details", noIncome: "No income entered this month.", noExpense: "No expenses entered this month.", otherIncome: "Also counted in total income (not entered in treasury)", none: "No entries this month.", page: "Fließend Deutsch Academy",
 };
 const AR: typeof EN = {
   title: "تقرير الخزينة الشهري", month: "الشهر", generated: "تاريخ الإصدار", print: "تحميل PDF", back: "العودة إلى الخزينة",
   income: "إجمالي الإيرادات", expenses: "إجمالي المصروفات", profit: "صافي الربح", treasury: "إيرادات الخزينة", studentPayments: "مدفوعات الطلاب", books: "الكتب",
   daily: "الإجمالي اليومي", date: "التاريخ", categories: "حسب التصنيف", category: "التصنيف", entries: "قيود الخزينة", type: "النوع", amount: "المبلغ", description: "الوصف",
-  incomeType: "إيراد", expenseType: "مصروف", net: "الصافي", total: "الإجمالي", from: "من", to: "إلى", none: "لا توجد قيود في هذا الشهر.", page: "أكاديمية Fließend Deutsch",
+  incomeType: "إيراد", expenseType: "مصروف", net: "الصافي", total: "الإجمالي", from: "من", to: "إلى", incomeRows: "قيود الإيرادات", expenseRows: "قيود المصروفات", subtotal: "الإجمالي الفرعي", enteredBy: "أدخله", forWhat: "التفاصيل", noIncome: "لا توجد إيرادات مسجلة هذا الشهر.", noExpense: "لا توجد مصروفات مسجلة هذا الشهر.", otherIncome: "محسوب أيضًا في إجمالي الإيرادات (غير مسجل في الخزينة)", none: "لا توجد قيود في هذا الشهر.", page: "أكاديمية Fließend Deutsch",
 };
 
 function monthEnd(month: string) {
@@ -36,10 +36,11 @@ export default async function TreasuryMonthReport({ searchParams }: { searchPara
   const month = /^\d{4}-\d{2}$/.test(params.month ?? "") ? params.month! : academyMonthStart().slice(0, 7);
   const from = `${month}-01`;
   const to = monthEnd(month);
-  const [money, treasury] = await Promise.all([
+  const [money, treasury, users] = await Promise.all([
     loadMoney(supabase, from, to),
-    fetchAll((start, end) => supabase.from("treasury_records").select("id,type,amount,date,category,description").gte("date", from).lte("date", to).order("date").order("id").range(start, end)),
-  ]);
+    fetchAll((start, end) => supabase.from("treasury_records").select("id,type,amount,date,category,description,created_by").gte("date", from).lte("date", to).order("date").order("id").range(start, end)),
+    supabase.from("users").select("id,full_name"),
+  ]).then(([loaded, records, people]) => [loaded, records, people] as const);
   const totals = moneyTotals(money.entries, () => true);
   const days = [...new Set(money.entries.map((entry) => entry.date))].sort().map((date) => ({ date, ...moneyTotals(money.entries, (value) => value === date) }));
   const categories = new Map<string, { income: number; expense: number }>();
@@ -49,7 +50,11 @@ export default async function TreasuryMonthReport({ searchParams }: { searchPara
     current[entry.type === "expense" ? "expense" : "income"] += entry.amount;
     categories.set(label, current);
   }
-  const rows = treasury.data ?? [];
+  const rows = [...(treasury.data ?? [])].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const who = (id: string | null) => (users.data ?? []).find((user) => user.id === id)?.full_name ?? "";
+  const incomeRows = rows.filter((row) => row.type !== "expense");
+  const expenseRows = rows.filter((row) => row.type === "expense");
+  const sumOf = (list: typeof rows) => list.reduce((total, row) => total + Number(row.amount ?? 0), 0);
   const cell = "border border-black/20 px-2 py-1.5 text-start";
   const head = `${cell} bg-black/5 font-semibold`;
 
@@ -71,6 +76,20 @@ export default async function TreasuryMonthReport({ searchParams }: { searchPara
         <div className="rounded border border-black/20 p-3"><p className="text-black/60">{L.profit}</p><p className="text-lg font-bold">{cash(totals.profit)}</p></div>
       </section>
 
+
+      {[{ title: L.incomeRows, list: incomeRows, empty: L.noIncome, tone: "text-green-800" }, { title: L.expenseRows, list: expenseRows, empty: L.noExpense, tone: "text-red-800" }].map((part) => (
+        <section key={part.title} className="mt-6">
+          <h2 className={`mb-2 text-sm font-bold ${part.tone}`}>{part.title} (<Ltr>{part.list.length}</Ltr>)</h2>
+          <table className="w-full border-collapse">
+            <thead><tr><th className={head}>#</th><th className={head}>{L.date}</th><th className={head}>{L.category}</th><th className={head}>{L.forWhat}</th><th className={head}>{L.enteredBy}</th><th className={head}>{L.amount}</th></tr></thead>
+            <tbody>{part.list.map((row, index) => <tr key={row.id} className="break-inside-avoid"><td className={cell}><Ltr>{index + 1}</Ltr></td><td className={`${cell} whitespace-nowrap`}><Ltr>{row.date}</Ltr></td><td className={cell} dir="auto" translate="no">{row.category}</td><td className={cell} dir="auto" translate="no">{row.description ?? ""}</td><td className={cell} translate="no">{who(row.created_by)}</td><td className={`${cell} whitespace-nowrap`}>{cash(Number(row.amount ?? 0))}</td></tr>)}</tbody>
+            {part.list.length > 0 && <tfoot><tr className="font-bold"><td className={cell} colSpan={5}>{L.subtotal}</td><td className={`${cell} whitespace-nowrap`}>{cash(sumOf(part.list))}</td></tr></tfoot>}
+          </table>
+          {!part.list.length && <p className="mt-2 text-black/60">{part.empty}</p>}
+        </section>
+      ))}
+      {(totals.studentPayments > 0 || totals.books > 0) && <p className="mt-2 text-[11px] text-black/60">{L.otherIncome}: {L.studentPayments} {cash(totals.studentPayments)} · {L.books} {cash(totals.books)}</p>}
+
       <section className="mt-6 break-inside-avoid">
         <h2 className="mb-2 text-sm font-bold">{L.categories}</h2>
         <table className="w-full border-collapse">
@@ -89,14 +108,6 @@ export default async function TreasuryMonthReport({ searchParams }: { searchPara
         </table>
       </section>
 
-      <section className="mt-6">
-        <h2 className="mb-2 text-sm font-bold">{L.entries} (<Ltr>{rows.length}</Ltr>)</h2>
-        <table className="w-full border-collapse">
-          <thead><tr><th className={head}>{L.date}</th><th className={head}>{L.type}</th><th className={head}>{L.category}</th><th className={head}>{L.amount}</th><th className={head}>{L.description}</th></tr></thead>
-          <tbody>{rows.map((row) => <tr key={row.id} className="break-inside-avoid"><td className={`${cell} whitespace-nowrap`}><Ltr>{row.date}</Ltr></td><td className={cell}>{row.type === "expense" ? L.expenseType : L.incomeType}</td><td className={cell} dir="auto" translate="no">{row.category}</td><td className={`${cell} whitespace-nowrap`}>{cash(Number(row.amount ?? 0))}</td><td className={cell} dir="auto" translate="no">{row.description ?? ""}</td></tr>)}</tbody>
-        </table>
-        {!rows.length && <p className="mt-2 text-black/60">{L.none}</p>}
-      </section>
 
       <p className="mt-8 border-t pt-2 text-[10px] text-black/50">{L.page} · {L.title} · <Ltr>{month}</Ltr></p>
     </main>
