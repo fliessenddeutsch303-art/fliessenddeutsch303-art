@@ -67,7 +67,20 @@ function BooksSummary({ books }: { books: StudentBook[] }) {
   return <Badge className="border-green-200 bg-green-50 text-green-700">Paid</Badge>;
 }
 
-const statusLabels: Record<string, string> = { active: "Active", inactive: "Inactive", waiting: "Waiting", graduated: "Graduated" };
+const statusLabels: Record<string, string> = { active: "Active", trial: "Trial session", inactive: "Inactive", waiting: "Waiting", graduated: "Graduated" };
+
+function StatusCell({ row, classes }: { row: Record<string, unknown>; classes: PromotionClass[] }) {
+  const nameOf = (id: unknown) => classes.find((klass) => klass.id === id)?.name ?? "";
+  if (row.status === "trial") {
+    const details = [nameOf(row.trial_class_id), String(row.trial_date ?? "")].filter(Boolean).join(" · ");
+    return <span className="flex items-center gap-2"><Badge className="border-blue-200 bg-blue-50 text-blue-700">Trial session</Badge>{details && <span className="text-xs text-muted-foreground">{details}</span>}</span>;
+  }
+  if (row.status === "waiting") {
+    const forClass = nameOf(row.waiting_class_id);
+    return <span className="flex items-center gap-2"><Badge className="border-amber-200 bg-amber-50 text-amber-700">Waiting</Badge><span className="text-xs text-muted-foreground">{row.waiting_since ? `since ${String(row.waiting_since)}` : ""}{forClass ? ` · ${forClass}` : ""}</span></span>;
+  }
+  return <>{statusLabels[String(row.status ?? "")] ?? String(row.status ?? "")}</>;
+}
 
 type PromotionClass = { id: string; name: string; level?: string | null };
 
@@ -147,6 +160,10 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
         Name: row.full_name as string,
         Phone: row.phone as string,
         "Trial session": row.trial_done ? "Yes" : "No",
+        "Trial class": classes.find((klass) => klass.id === row.trial_class_id)?.name ?? "",
+        "Trial date": String(row.trial_date ?? ""),
+        "Waiting since": String(row.waiting_since ?? ""),
+        "Waiting for class": classes.find((klass) => klass.id === row.waiting_class_id)?.name ?? "",
         Email: row.email as string,
         Level: row.level as string,
         Tags: tagsText(row),
@@ -269,7 +286,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
                   <td className="px-4 py-3">{freezeStatus(row) === "active" ? <Badge className="border-blue-200 bg-blue-50 text-blue-700"><Snowflake size={15} /> Active</Badge> : freezeStatus(row) === "expired" ? <Badge className="border-red-200 bg-red-50 text-red-700">Expired</Badge> : ""}</td>
                   <td className="px-4 py-3">{row.level_completed_stopped ? <Badge className="border-yellow-200 bg-yellow-50 text-yellow-700"><CheckCircle2 size={15} /> Finished level</Badge> : ""}</td>
                   <td className="max-w-[240px] truncate px-4 py-3" title={String(row.payment_comment ?? "") || undefined}>{String(row.payment_comment ?? "")}</td>
-                  <td className="px-4 py-3">{row.status === "waiting" ? <Badge className="border-amber-200 bg-amber-50 text-amber-700">Waiting</Badge> : statusLabels[String(row.status ?? "")] ?? String(row.status ?? "")}</td>
+                  <td className="px-4 py-3"><StatusCell row={row} classes={classes} /></td>
                   <td className="px-4 py-3"><StudentAttendanceCell studentName={String(row.full_name ?? "")} portalToken={typeof row.portal_token === "string" ? row.portal_token : null} /></td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">

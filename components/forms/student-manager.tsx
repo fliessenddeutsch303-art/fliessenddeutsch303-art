@@ -40,6 +40,10 @@ type StudentRow = {
   enrolled_at?: string | null;
   portal_token?: string | null;
   trial_done?: boolean | null;
+  trial_class_id?: string | null;
+  trial_date?: string | null;
+  waiting_class_id?: string | null;
+  waiting_since?: string | null;
   created_at?: string | null;
   classes?: { id?: string; name?: string; level?: string | null; teachers?: { name?: string } | null } | null;
   books?: StudentBook[];
@@ -67,6 +71,10 @@ const blank = {
   level_completed_stopped: "false",
   paid_on: "",
   earlier_paid_on: "",
+  trial_class_id: "",
+  trial_date: "",
+  waiting_class_id: "",
+  waiting_since: "",
 };
 
 export function StudentManager({ initialStudents, classes, canViewProfile = true, textbooks = [], canDelete = false }: { initialStudents: StudentRow[]; classes: ClassOption[]; canViewProfile?: boolean; textbooks?: TextbookOption[]; canDelete?: boolean }) {
@@ -166,6 +174,10 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
       level_completed_stopped: String(Boolean(student.level_completed_stopped)),
       paid_on: academyDate(),
       earlier_paid_on: "",
+      trial_class_id: student.trial_class_id ?? "",
+      trial_date: student.trial_date ?? "",
+      waiting_class_id: student.waiting_class_id ?? "",
+      waiting_since: student.waiting_since ?? "",
     });
     setSaved("");
     setInvalidFields([]);
@@ -176,6 +188,9 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
     const missing: string[] = [];
     if (!form.full_name.trim()) missing.push("Full name");
     if (!form.phone.trim()) missing.push("Phone");
+    if (form.status === "trial" && !form.trial_class_id) missing.push("Trial class");
+    if (form.status === "trial" && !form.trial_date) missing.push("Trial date");
+    if (form.status === "waiting" && !form.waiting_since) missing.push("Waiting since");
     if (missing.length) {
       setInvalidFields(missing);
       setSaved(`Please complete: ${missing.join(", ")}.`);
@@ -213,6 +228,11 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
       freeze_months: freezeMonths,
       freeze_end_date: freezeEnd,
       level_completed_stopped: form.level_completed_stopped === "true",
+      // kept after the status changes, so the history stays visible
+      trial_class_id: form.trial_class_id || null,
+      trial_date: form.trial_date || null,
+      waiting_class_id: form.waiting_class_id || null,
+      waiting_since: form.waiting_since || null,
     };
     // a higher amount_paid is a new payment, record it with its date
     const round = (value: number) => Math.round(value * 100) / 100;
@@ -300,12 +320,21 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
               <option value="offline">Offline</option>
               <option value="online">Online</option>
             </Select></label>
-            <label className="grid gap-1 text-sm"><span className="font-medium">Status</span><Select value={form.status} onChange={(event) => setField("status", event.target.value)}>
+            <label className="grid gap-1 text-sm"><span className="font-medium">Status</span><Select value={form.status} onChange={(event) => { const status = event.target.value; setForm((current) => ({ ...current, status, ...(status === "waiting" && !current.waiting_since ? { waiting_since: academyDate() } : {}) })); }}>
               <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="trial">Trial session</option>
               <option value="waiting">Waiting</option>
+              <option value="inactive">Inactive</option>
               <option value="graduated">Graduated</option>
             </Select></label>
+            {form.status === "trial" && <>
+              <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Trial class")}</span><Select className={requiredClass("Trial class")} value={form.trial_class_id} onChange={(event) => setField("trial_class_id", event.target.value)}><option value="">Choose the class...</option>{classes.map((klass) => <option key={klass.id} value={klass.id}>{klass.name}</option>)}</Select></label>
+              <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Trial date")}</span><Input type="date" className={requiredClass("Trial date")} value={form.trial_date} onChange={(event) => setField("trial_date", event.target.value)} /></label>
+            </>}
+            {form.status === "waiting" && <>
+              <label className="grid gap-1 text-sm"><span className="font-medium">Waiting for class</span><Select value={form.waiting_class_id} onChange={(event) => setField("waiting_class_id", event.target.value)}><option value="">Not decided yet</option>{classes.map((klass) => <option key={klass.id} value={klass.id}>{klass.name}</option>)}</Select></label>
+              <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Waiting since")}</span><Input type="date" max={academyDate()} className={requiredClass("Waiting since")} value={form.waiting_since} onChange={(event) => setField("waiting_since", event.target.value)} /></label>
+            </>}
             <label className="grid gap-1 text-sm"><span className="font-medium">Total price</span><Input type="number" min="0" step="0.01" value={form.total_price} onChange={(event) => setField("total_price", event.target.value)} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Amount paid</span><Input type="number" min="0" step="0.01" value={form.amount_paid} onChange={(event) => setField("amount_paid", event.target.value)} /></label>
             {Number(form.amount_paid || 0) > Number(editing?.amount_paid ?? 0) && <label className="grid gap-1 text-sm"><span className="font-medium">Paid on</span><Input type="date" max={academyDate()} value={form.paid_on || academyDate()} onChange={(event) => setField("paid_on", event.target.value)} /><span className="text-xs text-muted-foreground">The new amount ({Math.round((Number(form.amount_paid || 0) - Number(editing?.amount_paid ?? 0)) * 100) / 100}) is recorded as a payment on this date.</span></label>}
