@@ -38,6 +38,7 @@ type StudentRow = {
   promotion_candidate?: boolean;
   next_level?: string | null;
   enrolled_at?: string | null;
+  portal_token?: string | null;
   created_at?: string | null;
   classes?: { id?: string; name?: string; level?: string | null; teachers?: { name?: string } | null } | null;
   books?: StudentBook[];
@@ -250,13 +251,14 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
       return;
     }
 
-    const { data, error } = await supabase.from("students").insert({ ...payload, enrolled_at: new Date().toISOString() }).select("id").single();
+    // the token comes from the column default, read it back so the link and QR work right away
+    const { data, error } = await supabase.from("students").insert({ ...payload, enrolled_at: new Date().toISOString() }).select("id,portal_token").single();
     if (error) {
       setSaved(error.message);
       return;
     }
     const { added, warning } = await recordPayments(data.id);
-    setStudents((rows) => [{ id: data.id, ...payload, payments: added, enrolled_at: new Date().toISOString(), classes: loadedClass ?? classes.find((klass) => klass.id === payload.class_id) ?? null }, ...rows]);
+    setStudents((rows) => [{ id: data.id, portal_token: data.portal_token, ...payload, payments: added, enrolled_at: new Date().toISOString(), classes: loadedClass ?? classes.find((klass) => klass.id === payload.class_id) ?? null }, ...rows]);
     void recordAudit("created", "student", data.id, { fields: Object.keys(payload), full_name: payload.full_name });
     reset();
     setSaved(`Student saved${savedNote(added)}.${warning}`);

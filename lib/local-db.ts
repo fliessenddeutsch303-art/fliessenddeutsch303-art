@@ -416,6 +416,7 @@ class LocalQuery {
       const rows = (Array.isArray(this.payload) ? this.payload : [this.payload]).filter(Boolean).map((row) => ({
         id: row!.id ?? crypto.randomUUID(),
         created_at: row!.created_at ?? now,
+        ...(this.table === "students" || this.table === "teachers" ? { portal_token: crypto.randomUUID().replaceAll("-", "") } : {}),
         ...row,
       }));
       db[this.table].push(...rows);
