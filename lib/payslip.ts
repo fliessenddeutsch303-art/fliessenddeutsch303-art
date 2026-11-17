@@ -23,9 +23,16 @@ function hoursBetween(checkIn: string | null | undefined, checkOut: string | nul
   return Math.max(0, ((oh * 60 + om) - (ih * 60 + im)) / 60);
 }
 
+type AttendanceHours = { check_in?: string | null; check_out?: string | null; class_hours?: number | string | null };
+
+// teacher days with classes picked use the classes' session length, otherwise check-in/out
+function dayHours(row: AttendanceHours) {
+  return row.class_hours != null ? Number(row.class_hours) : hoursBetween(row.check_in, row.check_out);
+}
+
 // check-in without a valid check-out counts as 0h
-function unusableDays(rows: { check_in?: string | null; check_out?: string | null }[]) {
-  return rows.filter((row) => row.check_in && hoursBetween(row.check_in, row.check_out) === 0 && !(row.check_out && row.check_out === row.check_in)).length;
+function unusableDays(rows: AttendanceHours[]) {
+  return rows.filter((row) => row.class_hours == null && row.check_in && hoursBetween(row.check_in, row.check_out) === 0 && !(row.check_out && row.check_out === row.check_in)).length;
 }
 
 async function load<T>(label: string, build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>) {
@@ -53,7 +60,7 @@ export async function calculatePayslips(supabase: SupabaseClient, start: string,
     const linked = teacher.user_id ? userById.get(teacher.user_id) : undefined;
     const activeTeacher = Boolean(linked && linked.is_active && linked.role === "teacher");
     if (!activeTeacher && !rows.length) return [];
-    const hours = rows.reduce((sum, row) => sum + hoursBetween(row.check_in, row.check_out), 0);
+    const hours = rows.reduce((sum, row) => sum + dayHours(row), 0);
     const sessions = rows.reduce((sum, row) => sum + Number(row.sessions_count ?? 0), 0);
     const basePay = teacher.pay_type === "hourly"
       ? hours * Number(teacher.base_rate)
@@ -67,6 +74,8 @@ export async function calculatePayslips(supabase: SupabaseClient, start: string,
       + teacherPenalties.reduce((sum, row) => sum + Number(row.amount), 0);
     const notes = [...adjustments.map((row) => `${row.type}: ${row.reason} (${Number(row.amount)})`), ...teacherPenalties.map((row) => `penalty ${row.event_date}: ${row.notes} (${Number(row.amount)})`)];
     if (!activeTeacher) notes.push("Included only because of attendance in this period: the teacher's login is deactivated, deleted or no longer a teacher account.");
+    const fromClasses = rows.filter((row) => row.class_hours != null).length;
+    if (fromClasses && teacher.pay_type !== "fixed") notes.push(`${fromClasses} day${fromClasses === 1 ? "" : "s"} counted from the classes' session length.`);
     const missing = teacher.pay_type === "fixed" ? 0 : unusableDays(rows);
     if (missing) notes.push(`${missing} day${missing === 1 ? "" : "s"} without check-out ${missing === 1 ? "was" : "were"} counted as 0 hours.`);
     return [{

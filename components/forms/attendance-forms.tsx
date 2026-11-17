@@ -14,9 +14,66 @@ type Teacher = { id: string; name: string; pay_type: string };
 type Employee = { id: string; full_name: string; role: string; payroll_type?: string | null; account_user_id?: string | null };
 type Student = { id: string; full_name: string };
 type Class = { id: string; name: string; students?: Student[] };
-type StaffRow = { present: boolean; check_in: string; check_out: string; sessions_count: number; notes: string };
+type StaffRow = { present: boolean; check_in: string; check_out: string; sessions_count: number; notes: string; class_ids: string[] };
+export type TaughtClass = { id: string; name: string; teacher_id?: string | null; session_hours?: number | null; schedule?: string | null };
 
-const blankRow: StaffRow = { present: false, check_in: "", check_out: "", sessions_count: 0, notes: "" };
+const blankRow: StaffRow = { present: false, check_in: "", check_out: "", sessions_count: 0, notes: "", class_ids: [] };
+const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+// "Sunday 18:00 | Tuesday 19:30" -> start time on the weekday of `date`
+function startTimeOn(klass: TaughtClass, date: string) {
+  const day = weekdays[new Date(`${date}T12:00:00Z`).getUTCDay()];
+  return (klass.schedule ?? "").split("|").map((part) => part.trim().split(/\s+/)).find(([name]) => name === day)?.[1] ?? "";
+}
+
+function addHours(time: string, hours: number) {
+  const [h, m] = time.split(":").map(Number);
+  const total = Math.min(23 * 60 + 59, h * 60 + m + Math.round(hours * 60));
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+// hours are null when a chosen class has no session length, payroll then uses check-in/out
+function classHours(ids: string[], classes: TaughtClass[]) {
+  const chosen = ids.map((id) => classes.find((klass) => klass.id === id)).filter((klass): klass is TaughtClass => Boolean(klass));
+  const missing = chosen.filter((klass) => !Number(klass.session_hours)).map((klass) => klass.name);
+  const hours = chosen.reduce((sum, klass) => sum + Number(klass.session_hours ?? 0), 0);
+  return { hours: chosen.length && !missing.length ? Math.round(hours * 100) / 100 : null, missing };
+}
+
+function ClassPicker({ teacherId, ids, classes, onChange }: { teacherId: string; ids: string[]; classes: TaughtClass[]; onChange: (ids: string[]) => void }) {
+  const own = classes.filter((klass) => klass.teacher_id === teacherId);
+  const others = classes.filter((klass) => klass.teacher_id !== teacherId);
+  const options = (exclude: string[]) => <>
+    {own.filter((klass) => !exclude.includes(klass.id)).map((klass) => <option key={klass.id} value={klass.id}>{klass.name}{klass.session_hours ? ` (${Number(klass.session_hours)}h)` : ""}</option>)}
+    {others.some((klass) => !exclude.includes(klass.id)) && <optgroup label="Other classes">{others.filter((klass) => !exclude.includes(klass.id)).map((klass) => <option key={klass.id} value={klass.id}>{klass.name}{klass.session_hours ? ` (${Number(klass.session_hours)}h)` : ""}</option>)}</optgroup>}
+  </>;
+  const { hours, missing } = classHours(ids, classes);
+  return (
+    <div className="grid gap-2 md:col-span-5">
+      <div className="flex flex-wrap items-end gap-2">
+        {ids.map((id, index) => (
+          <label key={`${id}-${index}`} className="grid gap-1 text-xs text-muted-foreground">Class {index + 1}
+            <div className="flex items-center gap-1">
+              <Select className="w-56" value={id} onChange={(event) => onChange(ids.map((value, at) => at === index ? event.target.value : value))}>{options(ids.filter((value) => value !== id))}</Select>
+              <Button type="button" size="sm" variant="ghost" onClick={() => onChange(ids.filter((_, at) => at !== index))} aria-label="Remove class">×</Button>
+            </div>
+          </label>
+        ))}
+        {ids.length < classes.length && (
+          <label key={ids.length ? "another" : "first"} className="grid gap-1 text-xs text-muted-foreground">{ids.length ? "Another class" : "Class taught"}
+            <Select className="w-56" value="" onChange={(event) => event.target.value && onChange([...ids, event.target.value])}>
+              <option value="">{ids.length ? "Add another class..." : "Choose class..."}</option>
+              {options(ids)}
+            </Select>
+          </label>
+        )}
+      </div>
+      {ids.length > 0 && (hours !== null
+        ? <p className="text-sm text-green-700">Hours from classes: {hours} · sessions: {ids.length}</p>
+        : <p className="text-sm text-amber-700">No session length set for {missing.join(", ")}. Set it in Classes, until then hours come from check-in and check-out.</p>)}
+    </div>
+  );
+}
 const timeValue = (value: unknown) => String(value ?? "").slice(0, 5);
 
 function refreshClassProgress(body: { classIds?: string[]; teacherId?: string; date: string }) {
@@ -32,7 +89,7 @@ function QueueStatus({ pending, message, error }: { pending: number; message: st
   </>;
 }
 
-export function TeacherAttendanceForm({ teachers, employees = [], recordedBy }: { teachers: Teacher[]; employees?: Employee[]; recordedBy: string }) {
+export function TeacherAttendanceForm({ teachers, employees = [], classes = [], recordedBy }: { teachers: Teacher[]; employees?: Employee[]; classes?: TaughtClass[]; recordedBy: string }) {
   const [date, setDate] = useState(academyDate());
   const [rows, setRows] = useState<Record<string, StaffRow>>({});
   const [employeeRows, setEmployeeRows] = useState<Record<string, StaffRow>>({});
@@ -50,7 +107,7 @@ export function TeacherAttendanceForm({ teachers, employees = [], recordedBy }: 
       setLoadError("");
       const supabase = createSupabaseBrowserClient();
       const [teacherResult, employeeResult] = await Promise.all([
-        supabase.from("teacher_attendance").select("teacher_id,check_in,check_out,sessions_count,notes").eq("date", date),
+        supabase.from("teacher_attendance").select("teacher_id,check_in,check_out,sessions_count,notes,class_ids").eq("date", date),
         supabase.from("employee_attendance").select("employee_profile_id,check_in,check_out,notes").eq("date", date),
       ]);
       if (cancelled) return;
@@ -62,7 +119,7 @@ export function TeacherAttendanceForm({ teachers, employees = [], recordedBy }: 
         setLoading(false);
         return;
       }
-      const toRow = (record: Record<string, unknown>): StaffRow => ({ present: Boolean(record.check_in), check_in: timeValue(record.check_in), check_out: timeValue(record.check_out), sessions_count: Number(record.sessions_count ?? 0), notes: String(record.notes ?? "") });
+      const toRow = (record: Record<string, unknown>): StaffRow => ({ present: Boolean(record.check_in), check_in: timeValue(record.check_in), check_out: timeValue(record.check_out), sessions_count: Number(record.sessions_count ?? 0), notes: String(record.notes ?? ""), class_ids: Array.isArray(record.class_ids) ? record.class_ids.map(String) : [] });
       setRows(Object.fromEntries((teacherResult.data ?? []).map((record) => [record.teacher_id, toRow(record)])));
       setEmployeeRows(Object.fromEntries((employeeResult.data ?? []).filter((record) => record.employee_profile_id).map((record) => [record.employee_profile_id, toRow(record)])));
       setDirty(new Set());
@@ -75,6 +132,18 @@ export function TeacherAttendanceForm({ teachers, employees = [], recordedBy }: 
   function updateTeacher(id: string, patch: Partial<StaffRow>) {
     setRows((value) => ({ ...value, [id]: { ...(value[id] ?? blankRow), ...patch } }));
     setDirty((value) => new Set(value).add(`teacher:${id}`));
+  }
+
+  function pickClasses(teacherId: string, ids: string[]) {
+    const current = rows[teacherId] ?? blankRow;
+    const patch: Partial<StaffRow> = { class_ids: ids };
+    const first = classes.find((klass) => klass.id === ids[0]);
+    const start = first ? startTimeOn(first, date) : "";
+    if (!current.check_in && start) patch.check_in = start;
+    const hours = classHours(ids, classes).hours;
+    const from = patch.check_in ?? current.check_in;
+    if (!current.check_out && from && hours) patch.check_out = addHours(from, hours);
+    updateTeacher(teacherId, patch);
   }
 
   function updateEmployee(id: string, patch: Partial<StaffRow>) {
@@ -103,7 +172,8 @@ export function TeacherAttendanceForm({ teachers, employees = [], recordedBy }: 
     const queued = new Map<string, string>();
     for (const teacher of validTeachers) {
       const row = rows[teacher.id] ?? blankRow;
-      queued.set(`teacher:${teacher.id}`, await enqueue("teacher_attendance", { teacher_id: teacher.id, date, check_in: row.present ? row.check_in || null : null, check_out: row.present ? row.check_out || null : null, sessions_count: row.present ? row.sessions_count : 0, notes: row.notes, recorded_by: recordedBy }));
+      const taught = row.present ? row.class_ids : [];
+      queued.set(`teacher:${teacher.id}`, await enqueue("teacher_attendance", { teacher_id: teacher.id, date, check_in: row.present ? row.check_in || null : null, check_out: row.present ? row.check_out || null : null, sessions_count: row.present ? (taught.length || row.sessions_count) : 0, class_ids: taught, class_hours: classHours(taught, classes).hours, notes: row.notes, recorded_by: recordedBy }));
     }
     for (const employee of validEmployees) {
       const row = employeeRows[employee.id] ?? blankRow;
@@ -150,7 +220,10 @@ export function TeacherAttendanceForm({ teachers, employees = [], recordedBy }: 
         {teachers.map((teacher) => (
           <Card key={teacher.id} className={dirty.has(`teacher:${teacher.id}`) ? "border-accent" : ""}>
             <CardHeader><CardTitle>{teacher.name} <span className="text-sm font-normal text-muted-foreground">(teacher)</span></CardTitle></CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-5">{staffFields(rows[teacher.id] ?? blankRow, (patch) => updateTeacher(teacher.id, teacher.pay_type === "per_session" && patch.check_in && !(rows[teacher.id]?.sessions_count) ? { ...patch, sessions_count: 1 } : patch), teacher.pay_type === "per_session")}</CardContent>
+            <CardContent className="grid gap-3 md:grid-cols-5">
+              {staffFields(rows[teacher.id] ?? blankRow, (patch) => updateTeacher(teacher.id, teacher.pay_type === "per_session" && patch.check_in && !(rows[teacher.id]?.sessions_count) ? { ...patch, sessions_count: 1 } : patch), teacher.pay_type === "per_session" && !(rows[teacher.id]?.class_ids.length))}
+              {(rows[teacher.id] ?? blankRow).present && classes.length > 0 && <ClassPicker teacherId={teacher.id} ids={(rows[teacher.id] ?? blankRow).class_ids} classes={classes} onChange={(ids) => pickClasses(teacher.id, ids)} />}
+            </CardContent>
           </Card>
         ))}
         {!employees.length && !teachers.length && <p className="rounded-md border bg-white p-6 text-sm text-muted-foreground">No active employee profiles or teachers yet.</p>}

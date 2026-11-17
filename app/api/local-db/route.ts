@@ -11,6 +11,7 @@ export async function POST(request: Request) {
       table: string;
       operation: "select" | "insert" | "update" | "upsert" | "delete";
       payload?: Record<string, unknown> | Array<Record<string, unknown>> | null;
+      onConflict?: string;
       filters?: Filter[];
       sortKey?: string | null;
       ascending?: boolean;
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
     const client = createLocalSupabaseClient() as any;
     let query = client.from(body.table);
     if (body.operation === "insert") query = query.insert(body.payload ?? []);
-    if (body.operation === "upsert") query = query.upsert(body.payload ?? []);
+    if (body.operation === "upsert") query = query.upsert(body.payload ?? [], body.onConflict ? { onConflict: body.onConflict } : undefined);
     if (body.operation === "update") query = query.update(body.payload ?? {});
     if (body.operation === "delete") query = query.delete();
     query = query.select("*", { count: body.wantsCount ? "exact" : undefined, head: body.head });

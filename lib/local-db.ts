@@ -268,6 +268,7 @@ class LocalQuery {
   private wantsCount = false;
   private operation: "select" | "insert" | "update" | "upsert" | "delete" = "select";
   private payload: Row | Row[] | null = null;
+  private onConflict: string[] = [];
   private rangeFrom: number | null = null;
   private rangeTo: number | null = null;
 
@@ -285,9 +286,10 @@ class LocalQuery {
     return this;
   }
 
-  upsert(payload: Row | Row[]) {
+  upsert(payload: Row | Row[], options?: { onConflict?: string }) {
     this.operation = "upsert";
     this.payload = payload;
+    this.onConflict = options?.onConflict ? options.onConflict.split(",").map((key) => key.trim()) : [];
     return this;
   }
 
@@ -398,6 +400,7 @@ class LocalQuery {
           table: this.table,
           operation: this.operation,
           payload: this.payload,
+          onConflict: this.onConflict.join(","),
           filters: this.filterSpecs,
           sortKey: this.sortKey,
           ascending: this.ascending,
@@ -412,6 +415,19 @@ class LocalQuery {
       return response.json() as Promise<Result>;
     }
     db[this.table] ??= [];
+    if (this.operation === "upsert" && this.onConflict.length) {
+      // same as Postgres: rows matching the conflict columns are updated, the rest inserted
+      const incoming = (Array.isArray(this.payload) ? this.payload : [this.payload]).filter(Boolean) as Row[];
+      const saved = incoming.map((row) => {
+        const existing = db[this.table].find((item) => this.onConflict.every((key) => item[key] === row[key]));
+        if (existing) return Object.assign(existing, row);
+        const created = { id: row.id ?? crypto.randomUUID(), created_at: row.created_at ?? now, ...row };
+        db[this.table].push(created);
+        return created;
+      });
+      const data = this.singleRow ? withRelations(this.table, saved[0]) : saved.map((row) => withRelations(this.table, row));
+      return { data: clone(data), error: null, count: saved.length };
+    }
     if (this.operation === "insert" || this.operation === "upsert") {
       const rows = (Array.isArray(this.payload) ? this.payload : [this.payload]).filter(Boolean).map((row) => ({
         id: row!.id ?? crypto.randomUUID(),
@@ -447,6 +463,7 @@ export function createLocalSupabaseClient() {
   return {
     auth: {
       getUser: async () => ({ data: { user: { id: ids.admin, email: "admin@local.test" } }, error: null }),
+      getSession: async () => ({ data: { session: null }, error: null }),
       signInWithPassword: async () => ({ data: { user: { id: ids.admin, email: "admin@local.test" } }, error: null }),
       signOut: async () => ({ error: null }),
       admin: {

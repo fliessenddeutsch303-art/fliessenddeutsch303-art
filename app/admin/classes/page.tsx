@@ -11,7 +11,7 @@ export default async function ClassesPage() {
   const lang = await getCurrentLanguage();
   const today = academyDate();
   const [classes, teachers, exams, todayStudents, todayTeachers] = await Promise.all([
-    supabase.from("classes").select("id,name,level,learning_mode,schedule,capacity,teacher_id,total_sessions,sessions_done,last_session_completed_date,class_status,current_chapter,teachers(name),students(id,full_name,phone,email,level,learning_mode,status,class_id,freeze_start_date,freeze_end_date)").order("created_at", { ascending: false }),
+    supabase.from("classes").select("id,name,level,learning_mode,schedule,capacity,teacher_id,total_sessions,session_hours,sessions_done,last_session_completed_date,class_status,current_chapter,teachers(name),students(id,full_name,phone,email,level,learning_mode,status,class_id,freeze_start_date,freeze_end_date)").order("created_at", { ascending: false }),
     supabase.from("teachers").select("id,name").order("name"),
     fetchAll((from, to) => supabase.from("exam_records").select("id,student_id,exam_type,level_result,score_percent,scheduled_at,created_at").order("scheduled_at", { ascending: false }).order("id").range(from, to)),
     fetchAll((from, to) => supabase.from("student_attendance").select("student_id,class_id").eq("date", today).in("status", ["present", "late"]).order("id").range(from, to)),

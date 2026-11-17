@@ -26,6 +26,7 @@ type ClassRow = {
   schedule: string;
   capacity: number;
   total_sessions?: number | null;
+  session_hours?: number | null;
   sessions_done?: number | null;
   class_status?: "not_started" | "started" | "finished" | string | null;
   last_session_completed_date?: string | null;
@@ -61,6 +62,7 @@ export function ClassManager({ initialClasses, teachers, lang = "en" }: { initia
   const [scheduleSlots, setScheduleSlots] = useState<Record<string, string>>({});
   const [capacity, setCapacity] = useState("12");
   const [totalSessions, setTotalSessions] = useState("12");
+  const [sessionHours, setSessionHours] = useState("");
   const [sessionsDone, setSessionsDone] = useState("0");
   const [classStatus, setClassStatus] = useState("not_started");
   const [saved, setSaved] = useState("");
@@ -117,6 +119,7 @@ export function ClassManager({ initialClasses, teachers, lang = "en" }: { initia
     setScheduleSlots({});
     setCapacity("12");
     setTotalSessions("12");
+    setSessionHours("");
     setSessionsDone("0");
     setClassStatus("not_started");
     setSaved("");
@@ -143,6 +146,7 @@ export function ClassManager({ initialClasses, teachers, lang = "en" }: { initia
     setScheduleSlots(slots);
     setCapacity(String(row.capacity));
     setTotalSessions(String(row.total_sessions ?? 12));
+    setSessionHours(row.session_hours ? String(row.session_hours) : "");
     setSessionsDone(String(row.sessions_done ?? 0));
     setClassStatus(row.class_status ?? (Number(row.sessions_done ?? 0) > 0 ? "started" : "not_started"));
     setSaved("");
@@ -160,9 +164,11 @@ export function ClassManager({ initialClasses, teachers, lang = "en" }: { initia
     const capacityValue = Number(capacity || 0);
     const totalValue = Number(totalSessions || 0);
     const doneValue = Number(sessionsDone || 0);
+    const hoursValue = sessionHours ? Number(sessionHours) : null;
     if (!Number.isFinite(capacityValue) || capacityValue < 0) missing.push("Capacity");
     if (!Number.isFinite(totalValue) || totalValue < 0) missing.push("Total sessions");
     if (!Number.isFinite(doneValue) || doneValue < 0 || (totalValue > 0 && doneValue > totalValue)) missing.push("Sessions completed");
+    if (hoursValue !== null && !(hoursValue > 0 && hoursValue <= 12)) missing.push("Session length (hours)");
     if (missing.length) {
       setInvalidFields(missing);
       setSaved(`Please complete: ${missing.join(", ")}.`);
@@ -170,7 +176,7 @@ export function ClassManager({ initialClasses, teachers, lang = "en" }: { initia
     }
     setInvalidFields([]);
     const schedule = weekDays.filter((day) => scheduleSlots[day]).map((day) => `${day} ${scheduleSlots[day]}`).join(" | ");
-    const payload = { name, teacher_id: teacherId || null, level, current_chapter: currentChapter, learning_mode: learningMode, schedule, capacity: capacityValue, total_sessions: totalValue, sessions_done: doneValue, class_status: classStatus };
+    const payload = { name, teacher_id: teacherId || null, level, current_chapter: currentChapter, learning_mode: learningMode, schedule, capacity: capacityValue, total_sessions: totalValue, sessions_done: doneValue, session_hours: hoursValue, class_status: classStatus };
     const supabase = createSupabaseBrowserClient();
     if (editing) {
       const { error } = await supabase.from("classes").update(payload).eq("id", editing.id);
@@ -185,7 +191,7 @@ export function ClassManager({ initialClasses, teachers, lang = "en" }: { initia
       return;
     }
 
-    const { data, error } = await supabase.from("classes").insert(payload).select("id,name,teacher_id,level,current_chapter,learning_mode,schedule,capacity,total_sessions,sessions_done,last_session_completed_date,class_status").single();
+    const { data, error } = await supabase.from("classes").insert(payload).select("id,name,teacher_id,level,current_chapter,learning_mode,schedule,capacity,total_sessions,sessions_done,session_hours,last_session_completed_date,class_status").single();
     if (error) {
       setSaved(error.message);
       return;
@@ -205,6 +211,7 @@ export function ClassManager({ initialClasses, teachers, lang = "en" }: { initia
       schedule: data.schedule,
       capacity: data.capacity,
       total_sessions: data.total_sessions ?? payload.total_sessions,
+      session_hours: data.session_hours ?? payload.session_hours,
       sessions_done: data.sessions_done ?? payload.sessions_done,
       class_status: data.class_status ?? payload.class_status,
       last_session_completed_date: data.last_session_completed_date ?? null,
@@ -446,6 +453,7 @@ export function ClassManager({ initialClasses, teachers, lang = "en" }: { initia
               </div>
             </div>
             <label className="grid gap-1 text-sm"><span className="font-medium">Capacity</span><Input className={requiredClass("Capacity")} type="number" min="0" value={capacity} onChange={(event) => setCapacity(event.target.value)} /></label>
+            <label className="grid gap-1 text-sm"><span className="font-medium">Session length (hours)</span><Input className={requiredClass("Session length (hours)")} type="number" min="0.25" max="12" step="0.25" placeholder="e.g. 2" value={sessionHours} onChange={(event) => setSessionHours(event.target.value)} /><span className="text-xs text-muted-foreground">Used for teacher hours in payroll.</span></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Total sessions</span><Input className={requiredClass("Total sessions")} type="number" min="0" value={totalSessions} onChange={(event) => setTotalSessions(event.target.value)} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Sessions completed</span><Input className={requiredClass("Sessions completed")} type="number" min="0" max={Number(totalSessions) > 0 ? totalSessions : undefined} value={sessionsDone} onChange={(event) => setSessionsDone(event.target.value)} /></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Group status</span><Select value={classStatus} onChange={(event) => setClassStatus(event.target.value)}>
