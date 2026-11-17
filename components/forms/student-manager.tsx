@@ -39,6 +39,7 @@ type StudentRow = {
   next_level?: string | null;
   enrolled_at?: string | null;
   portal_token?: string | null;
+  trial_done?: boolean | null;
   created_at?: string | null;
   classes?: { id?: string; name?: string; level?: string | null; teachers?: { name?: string } | null } | null;
   books?: StudentBook[];
@@ -122,6 +123,15 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
     }
     const message = result.error ? `${removed.length ? `Students deleted: ${removed.length}. ` : ""}${result.error}` : !response ? "Could not reach the server, nothing was deleted." : `Students deleted: ${removed.length}`;
     return { removed, message };
+  }
+
+  async function setTrial(id: string, done: boolean) {
+    setStudents((rows) => rows.map((row) => row.id === id ? { ...row, trial_done: done } : row));
+    const { error } = await createSupabaseBrowserClient().from("students").update({ trial_done: done }).eq("id", id);
+    if (error) {
+      setStudents((rows) => rows.map((row) => row.id === id ? { ...row, trial_done: !done } : row));
+      setSaved(`Trial session not saved: ${error.message}`);
+    }
   }
 
   function setField(key: keyof typeof blank, value: string) {
@@ -293,6 +303,7 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
             <label className="grid gap-1 text-sm"><span className="font-medium">Status</span><Select value={form.status} onChange={(event) => setField("status", event.target.value)}>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
+              <option value="waiting">Waiting</option>
               <option value="graduated">Graduated</option>
             </Select></label>
             <label className="grid gap-1 text-sm"><span className="font-medium">Total price</span><Input type="number" min="0" step="0.01" value={form.total_price} onChange={(event) => setField("total_price", event.target.value)} /></label>
@@ -309,7 +320,7 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
           </form>
         </CardContent>
       </Card>
-      <StudentsTable rows={students as unknown as Record<string, unknown>[]} classes={classes} onEdit={(row) => startEdit(row as unknown as StudentRow)} onPromote={promoteStudent} canViewProfile={canViewProfile} textbooks={textbooks} onBooksChange={(studentId, books) => setStudents((rows) => rows.map((row) => row.id === studentId ? { ...row, books } : row))} onDelete={canDelete ? deleteStudents : undefined} />
+      <StudentsTable rows={students as unknown as Record<string, unknown>[]} classes={classes} onEdit={(row) => startEdit(row as unknown as StudentRow)} onPromote={promoteStudent} canViewProfile={canViewProfile} textbooks={textbooks} onBooksChange={(studentId, books) => setStudents((rows) => rows.map((row) => row.id === studentId ? { ...row, books } : row))} onDelete={canDelete ? deleteStudents : undefined} onTrialChange={(id, done) => void setTrial(id, done)} />
     </div>
   );
 }

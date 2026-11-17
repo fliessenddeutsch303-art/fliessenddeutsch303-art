@@ -36,7 +36,7 @@ export function StudentForm({ classes }: { classes: Option[] }) {
       <form action={submit} className="grid gap-3 md:grid-cols-3">
         <Input name="full_name" required placeholder="Full name" /><Input name="phone" required placeholder="Phone" /><Input name="email" type="email" placeholder="Email" />
         <Input name="level" placeholder="Level" /><Select name="class_id"><option value="">No class</option>{classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
-        <Select name="status" defaultValue="active"><option value="active">Active</option><option value="inactive">Inactive</option><option value="graduated">Graduated</option></Select>
+        <Select name="status" defaultValue="active"><option value="active">Active</option><option value="inactive">Inactive</option><option value="waiting">Waiting</option><option value="graduated">Graduated</option></Select>
         <Input name="total_price" type="number" min="0" step="0.01" placeholder="Total price" />
         <Input name="amount_paid" type="number" min="0" step="0.01" placeholder="Amount paid" />
         <Input name="payment_due_date" type="date" aria-label="Payment date arranged" />

@@ -67,12 +67,14 @@ function BooksSummary({ books }: { books: StudentBook[] }) {
   return <Badge className="border-green-200 bg-green-50 text-green-700">Paid</Badge>;
 }
 
+const statusLabels: Record<string, string> = { active: "Active", inactive: "Inactive", waiting: "Waiting", graduated: "Graduated" };
+
 type PromotionClass = { id: string; name: string; level?: string | null };
 
 const booksOf = (row: Record<string, unknown>) => (Array.isArray(row.books) ? row.books : []) as StudentBook[];
 const paymentsOf = (row: Record<string, unknown>) => (Array.isArray(row.payments) ? row.payments : []) as StudentPayment[];
 
-export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewProfile = true, textbooks = [], onBooksChange, onDelete }: { rows: Record<string, unknown>[]; classes?: PromotionClass[]; onEdit?: (row: Record<string, unknown>) => void; onPromote?: (student: Record<string, unknown>, classId: string) => Promise<{ ok: boolean; message: string }>; canViewProfile?: boolean; textbooks?: TextbookOption[]; onBooksChange?: (studentId: string, books: StudentBook[]) => void; onDelete?: (ids: string[]) => Promise<{ removed: string[]; message: string }> }) {
+export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewProfile = true, textbooks = [], onBooksChange, onDelete, onTrialChange }: { rows: Record<string, unknown>[]; classes?: PromotionClass[]; onEdit?: (row: Record<string, unknown>) => void; onPromote?: (student: Record<string, unknown>, classId: string) => Promise<{ ok: boolean; message: string }>; canViewProfile?: boolean; textbooks?: TextbookOption[]; onBooksChange?: (studentId: string, books: StudentBook[]) => void; onDelete?: (ids: string[]) => Promise<{ removed: string[]; message: string }>; onTrialChange?: (id: string, done: boolean) => void }) {
   const [nameQuery, setNameQuery] = useState("");
   const [levelFilter, setLevelFilter] = useState("");
   const [teacherFilter, setTeacherFilter] = useState("");
@@ -144,6 +146,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
       exportRows.map((row) => ({
         Name: row.full_name as string,
         Phone: row.phone as string,
+        "Trial session": row.trial_done ? "Yes" : "No",
         Email: row.email as string,
         Level: row.level as string,
         Tags: tagsText(row),
@@ -213,7 +216,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
         <Input className="w-40" type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label="To date" />
         <Button type="button" variant="outline" className="shrink-0" onClick={exportStudents} disabled={!exportRows.length}>
           <Upload size={16} />
-          {selectedRows.length ? `Export Selected (${selectedRows.length})` : `Export Filtered (${visibleRows.length})`}
+          <span key={selectedRows.length ? `s${selectedRows.length}` : `f${visibleRows.length}`}>{selectedRows.length ? `Export Selected (${selectedRows.length})` : `Export Filtered (${visibleRows.length})`}</span>
         </Button>
         {onDelete && selectedRows.length > 0 && <Button type="button" variant="outline" className="shrink-0 border-red-200 text-red-700 hover:bg-red-50" disabled={deleting} onClick={() => void deleteStudents(selectedRows)}><Trash2 size={16} /> Delete selected ({selectedRows.length})</Button>}
       </div>
@@ -224,7 +227,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
           <thead className="sticky top-0 z-10 bg-muted">
             <tr>
               <th className="px-4 py-3 text-center"><input type="checkbox" checked={visibleRows.length > 0 && visibleRows.every((row) => selected.has(String(row.id)))} onChange={toggleAll} /></th>
-              {["Name", "Phone", "Email", "Level", "Tags", "Class", "Teacher", "Online / Offline", "Price", "Paid", "Paid on", "Not Paid", "Payment Date", "Alert", "Books", "Freeze started", "Freeze finished", "Freeze status", "Finished / Stopped", "Comment", "Status", "Attendance", "Actions"].map((header) => (
+              {["Name", "Trial", "Phone", "Email", "Level", "Tags", "Class", "Teacher", "Online / Offline", "Price", "Paid", "Paid on", "Not Paid", "Payment Date", "Alert", "Books", "Freeze started", "Freeze finished", "Freeze status", "Finished / Stopped", "Comment", "Status", "Attendance", "Actions"].map((header) => (
                 <th key={header} className="px-4 py-3 text-right font-semibold">{header}</th>
               ))}
             </tr>
@@ -236,6 +239,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
                 <tr key={id} className="border-t">
                   <td className="px-4 py-3 text-center"><input type="checkbox" checked={selected.has(id)} onChange={() => toggle(id)} /></td>
                   <td className="min-w-[150px] whitespace-nowrap px-4 py-3">{String(row.full_name ?? "")}</td>
+                  <td className="px-2 py-3 text-center"><input type="checkbox" className="h-4 w-4 accent-green-600" checked={row.trial_done === true} disabled={!onTrialChange} onChange={(event) => onTrialChange?.(id, event.target.checked)} aria-label="Trial session done" title="Trial session done" /></td>
                   <td className="whitespace-nowrap px-4 py-3" dir="ltr">{String(row.phone ?? "")}</td>
                   <td className="min-w-[190px] whitespace-nowrap px-4 py-3">{String(row.email ?? "")}</td>
                   <td className="whitespace-nowrap px-4 py-3">{String(row.level ?? "")}</td>
@@ -265,7 +269,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
                   <td className="px-4 py-3">{freezeStatus(row) === "active" ? <Badge className="border-blue-200 bg-blue-50 text-blue-700"><Snowflake size={15} /> Active</Badge> : freezeStatus(row) === "expired" ? <Badge className="border-red-200 bg-red-50 text-red-700">Expired</Badge> : ""}</td>
                   <td className="px-4 py-3">{row.level_completed_stopped ? <Badge className="border-yellow-200 bg-yellow-50 text-yellow-700"><CheckCircle2 size={15} /> Finished level</Badge> : ""}</td>
                   <td className="max-w-[240px] truncate px-4 py-3" title={String(row.payment_comment ?? "") || undefined}>{String(row.payment_comment ?? "")}</td>
-                  <td className="px-4 py-3">{String(row.status ?? "")}</td>
+                  <td className="px-4 py-3">{row.status === "waiting" ? <Badge className="border-amber-200 bg-amber-50 text-amber-700">Waiting</Badge> : statusLabels[String(row.status ?? "")] ?? String(row.status ?? "")}</td>
                   <td className="px-4 py-3"><StudentAttendanceCell studentName={String(row.full_name ?? "")} portalToken={typeof row.portal_token === "string" ? row.portal_token : null} /></td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">

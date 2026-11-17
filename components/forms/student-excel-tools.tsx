@@ -68,7 +68,7 @@ export function StudentExcelTools({ rows, classes }: { rows: StudentRow[]; class
         learning_mode: String(pick(row, ["online/offline", "online / offline", "mode", "learning mode"]) ?? "offline").toLowerCase() === "online" ? "online" : "offline",
         status: (() => {
           const status = String(pick(row, ["status"]) || "active").trim().toLowerCase();
-          return ["active", "inactive", "graduated"].includes(status) ? status : "active";
+          return ["active", "inactive", "waiting", "graduated"].includes(status) ? status : "active";
         })(),
         total_price: asNumber(pick(row, ["price", "total price", "course price"])),
         amount_paid: asNumber(pick(row, ["paid", "amount paid"])),
