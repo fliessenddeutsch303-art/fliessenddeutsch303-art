@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { loadMoney, moneyTotals } from "@/lib/revenue";
 import { Resend } from "resend";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireApiUser } from "@/lib/api-auth";
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
     supabase.from("employee_attendance").select("check_in").eq("date", today),
     supabase.from("student_attendance").select("status,class_id").eq("date", today),
     supabase.from("classes").select("id,name"),
-    supabase.from("treasury_records").select("type,amount").eq("date", today),
+    loadMoney(supabase, today),
     supabase.from("lead_interactions").select("id", { count: "exact", head: true }).gte("created_at", dayStart),
     supabase.from("leads").select("id", { count: "exact", head: true }).gte("booked_at", dayStart),
   ]);
@@ -41,8 +42,10 @@ export async function POST(request: Request) {
   const activeTeachers = (teachers.data ?? []).filter((teacher) => teacher.user_id && activeTeacherUsers.has(teacher.user_id)).length;
   const presentTeachers = (teacherAttendance.data ?? []).filter((row) => row.check_in).length;
   const presentEmployees = (employeeAttendance.data ?? []).filter((row) => row.check_in).length;
-  const treasuryIncome = (treasury.data ?? []).filter((row) => row.type === "income").reduce((sum, row) => sum + Number(row.amount), 0);
-  const treasuryExpense = (treasury.data ?? []).filter((row) => row.type === "expense").reduce((sum, row) => sum + Number(row.amount), 0);
+  // treasury, student payments and paid books
+  const money = moneyTotals(treasury.entries, (date) => date === today);
+  const treasuryIncome = money.income;
+  const treasuryExpense = money.expenses;
   const classLines = (classes.data ?? []).flatMap((klass) => {
     const rows = (studentAttendance.data ?? []).filter((row) => row.class_id === klass.id);
     if (!rows.length) return [];

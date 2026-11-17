@@ -46,14 +46,14 @@ This is 22:00 Cairo time while Cairo is UTC+3. The route can also be called manu
 ## Custom Domain DNS on Vercel
 
 1. In Vercel, open the project, then Settings → Domains.
-2. Add `system.fliessend-deutsch.com`.
+2. Add `www.fliessend-deutsch.com`.
 3. At the DNS provider, add a CNAME record:
-   - Name: `system`
+   - Name: `www`
    - Value: `cname.vercel-dns.com`
 4. For an apex domain, use Vercel's recommended A record:
    - Name: `@`
    - Value: `76.76.21.21`
-5. Wait for Vercel to show “Valid Configuration”, then set `NEXT_PUBLIC_SITE_URL=https://system.fliessend-deutsch.com`.
+5. Wait for Vercel to show “Valid Configuration”, then set `NEXT_PUBLIC_SITE_URL=https://www.fliessend-deutsch.com`.
 
 ## Implemented Modules
 

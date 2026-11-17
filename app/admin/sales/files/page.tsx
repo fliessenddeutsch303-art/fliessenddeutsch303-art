@@ -8,5 +8,5 @@ export default async function AdminSalesFilesPage() {
     supabase.from("users").select("id,full_name").eq("role", "sales").eq("is_active", true),
     supabase.from("lead_files").select("id,name,upload_date,total_leads").order("upload_date", { ascending: false }),
   ]);
-  return <div className="space-y-6"><LeadImporter reps={reps.data ?? []} /><DataTable rows={(files.data ?? []) as unknown as Record<string, unknown>[]} columns={[{ key: "name", header: "File" }, { key: "upload_date", header: "Uploaded" }, { key: "total_leads", header: "Total" }]} /></div>;
+  return <div className="space-y-6"><LeadImporter reps={reps.data ?? []} /><DataTable rows={(files.data ?? []) as unknown as Record<string, unknown>[]} columns={[{ key: "name", header: "File" }, { key: "upload_date", header: "Uploaded" }, { key: "total_leads", header: "Total" }]} edit={{ table: "lead_files", fields: [{ key: "name", label: "File", required: true }] }} /></div>;
 }

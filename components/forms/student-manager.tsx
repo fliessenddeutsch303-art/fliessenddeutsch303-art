@@ -42,7 +42,7 @@ type StudentRow = {
   trial_done?: boolean | null;
   trial_class_id?: string | null;
   trial_date?: string | null;
-  waiting_class_id?: string | null;
+  waiting_level?: string | null;
   waiting_since?: string | null;
   created_at?: string | null;
   classes?: { id?: string; name?: string; level?: string | null; teachers?: { name?: string } | null } | null;
@@ -73,7 +73,7 @@ const blank = {
   earlier_paid_on: "",
   trial_class_id: "",
   trial_date: "",
-  waiting_class_id: "",
+  waiting_level: "",
   waiting_since: "",
 };
 
@@ -176,7 +176,7 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
       earlier_paid_on: "",
       trial_class_id: student.trial_class_id ?? "",
       trial_date: student.trial_date ?? "",
-      waiting_class_id: student.waiting_class_id ?? "",
+      waiting_level: student.waiting_level ?? "",
       waiting_since: student.waiting_since ?? "",
     });
     setSaved("");
@@ -190,6 +190,7 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
     if (!form.phone.trim()) missing.push("Phone");
     if (form.status === "trial" && !form.trial_class_id) missing.push("Trial class");
     if (form.status === "trial" && !form.trial_date) missing.push("Trial date");
+    if (form.status === "waiting" && !form.waiting_level.trim()) missing.push("Waiting for level");
     if (form.status === "waiting" && !form.waiting_since) missing.push("Waiting since");
     if (missing.length) {
       setInvalidFields(missing);
@@ -231,7 +232,7 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
       // kept after the status changes, so the history stays visible
       trial_class_id: form.trial_class_id || null,
       trial_date: form.trial_date || null,
-      waiting_class_id: form.waiting_class_id || null,
+      waiting_level: form.waiting_level.trim() || null,
       waiting_since: form.waiting_since || null,
     };
     // a higher amount_paid is a new payment, record it with its date
@@ -332,7 +333,7 @@ export function StudentManager({ initialStudents, classes, canViewProfile = true
               <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Trial date")}</span><Input type="date" className={requiredClass("Trial date")} value={form.trial_date} onChange={(event) => setField("trial_date", event.target.value)} /></label>
             </>}
             {form.status === "waiting" && <>
-              <label className="grid gap-1 text-sm"><span className="font-medium">Waiting for class</span><Select value={form.waiting_class_id} onChange={(event) => setField("waiting_class_id", event.target.value)}><option value="">Not decided yet</option>{classes.map((klass) => <option key={klass.id} value={klass.id}>{klass.name}</option>)}</Select></label>
+              <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Waiting for level")}</span><Input list="student-levels" className={requiredClass("Waiting for level")} placeholder="e.g. B1" value={form.waiting_level} onChange={(event) => setField("waiting_level", event.target.value)} /><datalist id="student-levels">{[...new Set(["A1", "A2", "B1", "B2", "C1", "C2", ...classes.map((klass) => klass.level ?? "").filter(Boolean)])].map((level) => <option key={level} value={level} />)}</datalist></label>
               <label className="grid gap-1 text-sm"><span className="font-medium">{requiredLabel("Waiting since")}</span><Input type="date" max={academyDate()} className={requiredClass("Waiting since")} value={form.waiting_since} onChange={(event) => setField("waiting_since", event.target.value)} /></label>
             </>}
             <label className="grid gap-1 text-sm"><span className="font-medium">Total price</span><Input type="number" min="0" step="0.01" value={form.total_price} onChange={(event) => setField("total_price", event.target.value)} /></label>

@@ -27,8 +27,8 @@ export default async function AdjustmentsPage() {
     ?? (allProfiles.data ?? []).find((item) => item.id === row.employee_profile_id)?.full_name
     ?? (allUsers.data ?? []).find((item) => item.id === row.user_id)?.full_name
     ?? "";
-  const rows = [...(teacherAdjustments.data ?? []), ...(employeeAdjustments.data ?? [])]
+  const rows = [...(teacherAdjustments.data ?? []).map((row) => ({ ...row, _table: "teacher_adjustments" })), ...(employeeAdjustments.data ?? []).map((row) => ({ ...row, _table: "employee_adjustments" }))]
     .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
-    .map((row) => ({ id: row.id, employee: nameOf(row), type: row.type, amount: row.amount, reason: row.reason, period_start: row.period_start, period_end: row.period_end }));
-  return <div className="space-y-6"><AdjustmentForm targets={targets} /><Card><CardHeader><CardTitle>Adjustments</CardTitle></CardHeader><CardContent><DataTable rows={rows} columns={[{ key: "employee", header: "Employee" }, { key: "type", header: "Type" }, { key: "amount", header: "Amount" }, { key: "reason", header: "Reason" }, { key: "period_start", header: "Start" }, { key: "period_end", header: "End" }]} /></CardContent></Card></div>;
+    .map((row) => ({ id: row.id, employee: nameOf(row), type: row.type, amount: row.amount, reason: row.reason, period_start: row.period_start, period_end: row.period_end, _table: row._table }));
+  return <div className="space-y-6"><AdjustmentForm targets={targets} /><Card><CardHeader><CardTitle>Adjustments</CardTitle></CardHeader><CardContent><DataTable rows={rows} columns={[{ key: "employee", header: "Employee" }, { key: "type", header: "Type" }, { key: "amount", header: "Amount" }, { key: "reason", header: "Reason" }, { key: "period_start", header: "Start" }, { key: "period_end", header: "End" }]} edit={{ canDelete: true, fields: [{ key: "type", label: "Type", type: "select", required: true, options: [{ value: "bonus", label: "Bonus" }, { value: "deduction", label: "Deduction" }] }, { key: "amount", label: "Amount", type: "number", required: true }, { key: "reason", label: "Reason", required: true }, { key: "period_start", label: "Start", type: "date", required: true }, { key: "period_end", label: "End", type: "date", required: true }] }} /></CardContent></Card></div>;
 }

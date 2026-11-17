@@ -6,7 +6,7 @@ import { qrDataUrl } from "@/lib/qr";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 
 function siteUrl() {
-  return process.env.NEXT_PUBLIC_SITE_URL || "https://www.fliessendeutsch.com";
+  return process.env.NEXT_PUBLIC_SITE_URL || "https://www.fliessend-deutsch.com";
 }
 
 function slug(value: string) {

@@ -5,15 +5,20 @@ import { fetchAll } from "@/lib/supabase/fetch-all";
 import { formatMoney } from "@/lib/utils";
 import { ReportDataTools } from "@/components/forms/report-data-tools";
 import { academyDate, academyDateOf, academyDayStartIso, academyMonthStart } from "@/lib/dates";
+import { TreasuryForm } from "@/components/forms/simple-record-forms";
+import { dictionaries } from "@/lib/i18n";
+import { getCurrentLanguage } from "@/lib/i18n-server";
+import { loadMoney, moneyTotals } from "@/lib/revenue";
 
 
 export default async function ReportsPage() {
   const { supabase } = await getCurrentUser("admin");
+  const lang = await getCurrentLanguage();
   const today = academyDate();
   const monthStart = academyMonthStart();
   const monthStartIso = academyDayStartIso(monthStart);
-  const [treasury, attendance, teacherAttendance, interactions, leads, files, users, classes, createdAccounts, enrolments, bookedLeads, paidAccounts] = await Promise.all([
-    fetchAll((from, to) => supabase.from("treasury_records").select("id,type,amount,date,category").gte("date", monthStart).order("id").range(from, to)),
+  const [money, attendance, teacherAttendance, interactions, leads, files, users, classes, createdAccounts, enrolments, bookedLeads, paidAccounts, waitingStudents, trials, booksGiven] = await Promise.all([
+    loadMoney(supabase, monthStart),
     fetchAll((from, to) => supabase.from("student_attendance").select("id,status,date,class_id").gte("date", monthStart).order("id").range(from, to)),
     fetchAll((from, to) => supabase.from("teacher_attendance").select("id,check_in,date").gte("date", monthStart).order("id").range(from, to)),
     fetchAll((from, to) => supabase.from("lead_interactions").select("id,created_by,created_at,lead_id").gte("created_at", monthStartIso).order("id").range(from, to)),
@@ -25,15 +30,16 @@ export default async function ReportsPage() {
     supabase.from("students").select("id,class_id").gte("enrolled_at", monthStartIso),
     fetchAll((from, to) => supabase.from("leads").select("id,assigned_to,booked_at").gte("booked_at", monthStartIso).order("id").range(from, to)),
     fetchAll((from, to) => supabase.from("student_account_records").select("id,amount,status,class_id,created_at,paid_at").gte("paid_at", monthStartIso).order("id").range(from, to)),
+    supabase.from("students").select("id", { count: "exact", head: true }).eq("status", "waiting"),
+    supabase.from("students").select("id", { count: "exact", head: true }).gte("trial_date", monthStart),
+    supabase.from("student_books").select("id", { count: "exact", head: true }).gte("received_at", monthStart),
   ]);
   // paid rows count in the month they were paid, the rest by created_at
   const accounts = [...new Map([...(createdAccounts.data ?? []), ...(paidAccounts.data ?? [])].map((row) => [row.id, row])).values()].filter((row) => (row.status === "paid" ? (row.paid_at ?? row.created_at) : row.created_at) >= monthStartIso);
 
-  const treasuryRows = treasury.data ?? [];
-  const incomeToday = treasuryRows.filter((row) => row.type === "income" && row.date === today).reduce((sum, row) => sum + Number(row.amount), 0);
-  const expenseToday = treasuryRows.filter((row) => row.type === "expense" && row.date === today).reduce((sum, row) => sum + Number(row.amount), 0);
-  const incomeMonth = treasuryRows.filter((row) => row.type === "income" && row.date >= monthStart).reduce((sum, row) => sum + Number(row.amount), 0);
-  const expenseMonth = treasuryRows.filter((row) => row.type === "expense" && row.date >= monthStart).reduce((sum, row) => sum + Number(row.amount), 0);
+  const day = moneyTotals(money.entries, (date) => date === today);
+  const month = moneyTotals(money.entries, (date) => date >= monthStart);
+  const breakdown = (totals: typeof day) => `Treasury ${formatMoney(totals.treasuryIncome)} · Student payments ${formatMoney(totals.studentPayments)} · Books ${formatMoney(totals.books)}`;
 
   const dailyAttendance = (attendance.data ?? []).filter((row) => row.date === today);
   const monthlyAttendance = (attendance.data ?? []).filter((row) => row.date >= monthStart);
@@ -82,13 +88,16 @@ export default async function ReportsPage() {
     };
   });
 
-  const cards = [
-    ["Daily revenue", formatMoney(incomeToday)],
-    ["Daily expenses", formatMoney(expenseToday)],
-    ["Daily profit", formatMoney(incomeToday - expenseToday)],
-    ["Monthly revenue", formatMoney(incomeMonth)],
-    ["Monthly expenses", formatMoney(expenseMonth)],
-    ["Monthly profit", formatMoney(incomeMonth - expenseMonth)],
+  const cards: Array<[string, string, string?]> = [
+    ["Daily revenue", formatMoney(day.income), breakdown(day)],
+    ["Daily expenses", formatMoney(day.expenses)],
+    ["Daily profit", formatMoney(day.profit)],
+    ["Monthly revenue", formatMoney(month.income), breakdown(month)],
+    ["Monthly expenses", formatMoney(month.expenses)],
+    ["Monthly profit", formatMoney(month.profit)],
+    ["Students waiting", String(waitingStudents.count ?? 0)],
+    ["Trial sessions this month", String(trials.count ?? 0)],
+    ["Books handed out this month", String(booksGiven.count ?? 0)],
     ["Bookings today / month", `${dailyBookings.length} / ${monthlyBookings.length}`],
     ["Follow-ups today / month", `${dailyFollowups.length} / ${monthlyFollowups.length}`],
     ["Student attendance today", `${dailyAttendance.filter((row) => row.status === "present" || row.status === "late").length} / ${dailyAttendance.length}`],
@@ -104,9 +113,10 @@ export default async function ReportsPage() {
 
   return (
     <div className="space-y-6">
+      <TreasuryForm labels={dictionaries[lang].treasuryPage} />
       <ReportDataTools reportData={reportData} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {cards.map(([label, value]) => <Card key={label}><CardHeader><CardTitle className="text-sm text-muted-foreground">{label}</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{value}</CardContent></Card>)}
+        {cards.map(([label, value, note]) => <Card key={label}><CardHeader><CardTitle className="text-sm text-muted-foreground">{label}</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold">{value}</p>{note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}</CardContent></Card>)}
       </div>
       <Card><CardHeader><CardTitle>Course and payment reports</CardTitle></CardHeader><CardContent><DataTable rows={courseRows} columns={[{ key: "course", header: "Course" }, { key: "attendance_rate", header: "Attendance" }, { key: "accounts_paid", header: "Paid" }, { key: "accounts_scheduled", header: "Scheduled / unpaid" }, { key: "payment_records", header: "Payment records" }, { key: "enrolments", header: "New enrolments (month)" }]} /></CardContent></Card>
       <Card><CardHeader><CardTitle>Sales KPIs</CardTitle></CardHeader><CardContent><DataTable rows={salesRows} columns={[{ key: "sales", header: "Sales employee" }, { key: "daily_followups", header: "Daily follow-ups" }, { key: "monthly_followups", header: "Monthly follow-ups" }, { key: "monthly_bookings", header: "Monthly bookings" }, { key: "interested", header: "Interested (new leads this month)" }, { key: "not_interested", header: "Not interested (new leads this month)" }, { key: "no_answer", header: "No answer (new leads this month)" }]} /></CardContent></Card>

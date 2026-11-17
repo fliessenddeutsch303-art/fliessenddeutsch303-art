@@ -90,22 +90,34 @@ const defaultTreasuryLabels: TreasuryLabels = {
 };
 
 export function TreasuryForm({ labels = defaultTreasuryLabels }: { labels?: TreasuryLabels }) {
+  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [saved, setSaved] = useState("");
   const [error, setError] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const inFlight = useRef(false);
   async function submit(form: FormData) {
+    // a ref, because a fast double click runs before the disabled state renders
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setSaving(true);
     const supabase = createSupabaseBrowserClient();
-    const { error } = await supabase.from("treasury_records").insert({ type: form.get("type"), amount: Number(form.get("amount")), category: form.get("category"), description: form.get("description"), date: form.get("date") });
+    const { error } = await supabase.from("treasury_records").insert({ type: form.get("type"), amount: Number(form.get("amount")), category: String(form.get("category") ?? "").trim(), description: form.get("description"), date: form.get("date") });
+    inFlight.current = false;
+    setSaving(false);
     setError(Boolean(error));
     setSaved(error?.message ?? "Record saved successfully");
-    if (!error) formRef.current?.reset();
+    if (!error) {
+      formRef.current?.reset();
+      router.refresh();
+    }
   }
   return (
     <Card><CardHeader><CardTitle>{labels.addTitle}</CardTitle></CardHeader><CardContent>
       <form ref={formRef} action={submit} className="grid gap-3 md:grid-cols-5">
         <Select name="type" aria-label={labels.type} defaultValue="income"><option value="income">{labels.income}</option><option value="expense">{labels.expense}</option></Select><Input name="amount" type="number" min="0.01" step="0.01" required placeholder={labels.amount} aria-label={labels.amount} />
         <Input name="category" required placeholder={labels.category} aria-label={labels.category} /><Input name="date" type="date" required defaultValue={academyDate()} aria-label={labels.date} />
-        <Input name="description" placeholder={labels.description} aria-label={labels.description} /><Button className="md:col-span-5">{labels.save}</Button>{saved && <p role="status" className={`text-sm md:col-span-5 ${error ? "text-red-700" : "text-green-700"}`}>{saved}</p>}
+        <Input name="description" placeholder={labels.description} aria-label={labels.description} /><Button className="md:col-span-5" disabled={saving}>{labels.save}</Button>{saved && <p key={saved} role="status" className={`text-sm md:col-span-5 ${error ? "text-red-700" : "text-green-700"}`}>{saved}</p>}
       </form>
     </CardContent></Card>
   );

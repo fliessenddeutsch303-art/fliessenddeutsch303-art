@@ -67,6 +67,7 @@ export default async function HrPerformancePage() {
     amount: event.amount ?? "",
     score: event.score ?? "",
     notes: event.notes,
+    _edit: { type: event.type, event_date: event.event_date, amount: event.amount, score: event.score, notes: event.notes },
   }));
   const kpiRows = (users.data ?? []).map((user) => ({
     id: user.id,
@@ -93,6 +94,7 @@ export default async function HrPerformancePage() {
     role: translateValue(item.target_role, lang),
     comment: item.comment,
     date: String(item.created_at).slice(0, 10),
+    _edit: { comment: item.comment },
   }));
   return (
     <div className="space-y-6">
@@ -131,8 +133,8 @@ export default async function HrPerformancePage() {
         </CardContent>
       </Card>
       <Card><CardHeader><CardTitle>{labels.kpis}</CardTitle></CardHeader><CardContent><DataTable rows={[...kpiRows, ...teacherKpiRows]} labels={labels.table} empty={labels.empty} columns={[{ key: "employee", header: labels.employee }, { key: "role", header: labels.role }, { key: "sales_followups", header: labels.followups }, { key: "sales_bookings", header: labels.bookings }, { key: "hr_events", header: labels.hrNotes }]} /></CardContent></Card>
-      <Card><CardHeader><CardTitle>{labels.feedback}</CardTitle></CardHeader><CardContent><DataTable rows={studentWorkerFeedbackRows} labels={labels.table} empty={labels.empty} columns={[{ key: "student", header: labels.student }, { key: "worker", header: labels.worker }, { key: "role", header: labels.role }, { key: "comment", header: labels.comment }, { key: "date", header: labels.date }]} /></CardContent></Card>
-      <Card><CardHeader><CardTitle>{labels.events}</CardTitle></CardHeader><CardContent><DataTable rows={eventRows} labels={labels.table} empty={labels.empty} columns={[{ key: "employee", header: labels.employee }, { key: "type", header: labels.type }, { key: "date", header: labels.date }, { key: "amount", header: labels.amount }, { key: "score", header: labels.score }, { key: "notes", header: labels.notes }]} /></CardContent></Card>
+      <Card><CardHeader><CardTitle>{labels.feedback}</CardTitle></CardHeader><CardContent><DataTable rows={studentWorkerFeedbackRows} labels={labels.table} empty={labels.empty} columns={[{ key: "student", header: labels.student }, { key: "worker", header: labels.worker }, { key: "role", header: labels.role }, { key: "comment", header: labels.comment }, { key: "date", header: labels.date }]} edit={{ table: "student_worker_feedback", canDelete: true, fields: [{ key: "comment", label: labels.comment, type: "textarea", required: true }] }} /></CardContent></Card>
+      <Card><CardHeader><CardTitle>{labels.events}</CardTitle></CardHeader><CardContent><DataTable rows={eventRows} labels={labels.table} empty={labels.empty} columns={[{ key: "employee", header: labels.employee }, { key: "type", header: labels.type }, { key: "date", header: labels.date }, { key: "amount", header: labels.amount }, { key: "score", header: labels.score }, { key: "notes", header: labels.notes }]} edit={{ table: "employee_events", canDelete: true, fields: [{ key: "type", label: labels.type, type: "select", required: true, options: [{ value: "vacation", label: translateValue("vacation", lang) }, { value: "penalty", label: translateValue("penalty", lang) }, { value: "performance_note", label: translateValue("performance_note", lang) }] }, { key: "event_date", label: labels.date, type: "date", required: true }, { key: "amount", label: labels.amount, type: "number" }, { key: "score", label: labels.score, type: "number" }, { key: "notes", label: labels.notes, type: "textarea", required: true }] }} /></CardContent></Card>
     </div>
   );
 }

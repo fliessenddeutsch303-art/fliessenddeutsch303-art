@@ -8,7 +8,7 @@ import { isPromotionCandidate, promotionExamByStudent } from "@/lib/level-progre
 export default async function AdminStudentsPage() {
   const { supabase } = await getCurrentUser("admin");
   const [students, classes, exams, books, textbooks, payments] = await Promise.all([
-    fetchAll((from, to) => supabase.from("students").select("id,full_name,phone,email,level,tags,class_id,learning_mode,status,trial_done,trial_class_id,trial_date,waiting_since,waiting_class_id,total_price,amount_paid,payment_due_date,payment_comment,freeze_start_date,freeze_months,freeze_end_date,level_completed_stopped,enrolled_at,created_at,portal_token,classes(name,teachers(name))").order("created_at", { ascending: false }).order("id").range(from, to)),
+    fetchAll((from, to) => supabase.from("students").select("id,full_name,phone,email,level,tags,class_id,learning_mode,status,trial_done,trial_class_id,trial_date,waiting_since,waiting_level,total_price,amount_paid,payment_due_date,payment_comment,freeze_start_date,freeze_months,freeze_end_date,level_completed_stopped,enrolled_at,created_at,portal_token,classes(name,teachers(name))").order("created_at", { ascending: false }).order("id").range(from, to)),
     supabase.from("classes").select("id,name,level").order("name"),
     fetchAll((from, to) => supabase.from("exam_records").select("id,student_id,exam_type,level_result,score_percent,scheduled_at,created_at").order("scheduled_at", { ascending: false }).order("id").range(from, to)),
     fetchAll((from, to) => supabase.from("student_books").select("*").order("received_at", { ascending: false }).order("id").range(from, to)),

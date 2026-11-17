@@ -76,8 +76,7 @@ function StatusCell({ row, classes }: { row: Record<string, unknown>; classes: P
     return <span className="flex items-center gap-2"><Badge className="border-blue-200 bg-blue-50 text-blue-700">Trial session</Badge>{details && <span className="text-xs text-muted-foreground">{details}</span>}</span>;
   }
   if (row.status === "waiting") {
-    const forClass = nameOf(row.waiting_class_id);
-    return <span className="flex items-center gap-2"><Badge className="border-amber-200 bg-amber-50 text-amber-700">Waiting</Badge><span className="text-xs text-muted-foreground">{row.waiting_since ? `since ${String(row.waiting_since)}` : ""}{forClass ? ` · ${forClass}` : ""}</span></span>;
+    return <span className="flex items-center gap-2"><Badge className="border-amber-200 bg-amber-50 text-amber-700">Waiting</Badge><span className="text-xs text-muted-foreground">{row.waiting_level ? `${String(row.waiting_level)} · ` : ""}{row.waiting_since ? `since ${String(row.waiting_since)}` : ""}</span></span>;
   }
   return <>{statusLabels[String(row.status ?? "")] ?? String(row.status ?? "")}</>;
 }
@@ -163,7 +162,7 @@ export function StudentsTable({ rows, classes = [], onEdit, onPromote, canViewPr
         "Trial class": classes.find((klass) => klass.id === row.trial_class_id)?.name ?? "",
         "Trial date": String(row.trial_date ?? ""),
         "Waiting since": String(row.waiting_since ?? ""),
-        "Waiting for class": classes.find((klass) => klass.id === row.waiting_class_id)?.name ?? "",
+        "Waiting for level": String(row.waiting_level ?? ""),
         Email: row.email as string,
         Level: row.level as string,
         Tags: tagsText(row),
